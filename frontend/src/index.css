@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 전역 스타일 */
+:root {
+  --color-primary: #a6714f;
+  --color-secondary: #d4ba8c;
+  --color-background: #fdfcfa;
+  --color-surface: #ffffff;
+  --color-text-primary: #1a1412;
+  --color-text-secondary: #6b5b51;
+}
+
+.dark {
+  --color-background: #1a1412;
+  --color-surface: #2d2420;
+  --color-text-primary: #faf7f2;
+  --color-text-secondary: #c4b5a8;
+}
+
+body {
+  @apply bg-[var(--color-background)] text-[var(--color-text-primary)] font-sans antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 터치 친화적 버튼 */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center min-h-touch min-w-touch px-4 py-2
+           font-medium rounded-button transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           active:scale-95;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-500 text-white hover:bg-primary-600
+           focus:ring-primary-500 dark:bg-primary-600 dark:hover:bg-primary-700;
+  }
+
+  .btn-secondary {
+    @apply btn bg-secondary-200 text-primary-800 hover:bg-secondary-300
+           focus:ring-secondary-500 dark:bg-secondary-700 dark:text-secondary-100;
+  }
+
+  .btn-outline {
+    @apply btn border-2 border-primary-500 text-primary-600 bg-transparent
+           hover:bg-primary-50 focus:ring-primary-500
+           dark:border-primary-400 dark:text-primary-400 dark:hover:bg-primary-900/20;
+  }
+
+  .btn-ghost {
+    @apply btn text-primary-600 hover:bg-primary-50
+           dark:text-primary-400 dark:hover:bg-primary-900/20;
+  }
+
+  .btn-success {
+    @apply btn bg-success-500 text-white hover:bg-success-600 focus:ring-success-500;
+  }
+
+  .btn-error {
+    @apply btn bg-error-500 text-white hover:bg-error-600 focus:ring-error-500;
+  }
+
+  .btn-lg {
+    @apply min-h-touch-lg px-6 py-3 text-lg;
+  }
+
+  .btn-sm {
+    @apply min-h-[2rem] min-w-[2rem] px-3 py-1 text-sm;
+  }
+
+  /* 카드 스타일 */
+  .card {
+    @apply bg-white rounded-card shadow-card p-4
+           dark:bg-[#2d2420] dark:shadow-none dark:border dark:border-primary-800/30;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-card-hover transition-shadow duration-200;
+  }
+
+  /* 입력 필드 */
+  .input {
+    @apply w-full min-h-touch px-4 py-2 rounded-button border border-gray-300
+           bg-white text-gray-900 placeholder-gray-400
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+           dark:bg-[#3d322c] dark:border-primary-800/50 dark:text-white dark:placeholder-gray-500;
+  }
+
+  /* 모달 오버레이 */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50
+           animate-fade-in;
+  }
+
+  .modal-content {
+    @apply bg-white rounded-modal shadow-modal max-w-md w-full max-h-[90vh] overflow-auto
+           animate-scale-in
+           dark:bg-[#2d2420];
+  }
+}
+
+/* 숫자 입력 스피너 제거 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* 스크롤바 스타일링 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary-300 rounded-full hover:bg-primary-400;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-primary-700 hover:bg-primary-600;
+}
