@@ -13,7 +13,7 @@ pydantic-settings==2.1.0
 # 인증 및 보안
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-httpx==0.26.0
+httpx>=0.24,<0.26
 
 # 유틸리티
 python-dateutil==2.8.2
