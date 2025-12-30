@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # 앱 설정
     app_env: str = "development"
     frontend_url: str = "http://localhost:5173"
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:5173"
 
     @property
     def cors_origins_list(self) -> List[str]:

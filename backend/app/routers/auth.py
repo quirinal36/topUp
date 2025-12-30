@@ -2,9 +2,14 @@
 인증 API 라우터
 소셜 로그인, PIN 관리 등
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
+
+# 디버그 로깅 설정
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 from ..database import get_db
 from ..services.auth_service import AuthService
