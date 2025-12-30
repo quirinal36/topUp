@@ -86,3 +86,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# MCP Config (contains API tokens)
+.mcp.json

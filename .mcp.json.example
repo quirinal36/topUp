@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=YOUR_PROJECT_REF"
+    },
+    "atlassian-confluence": {
+      "command": "npx",
+      "args": ["-y", "@aashari/mcp-server-atlassian-confluence"],
+      "env": {
+        "ATLASSIAN_SITE_NAME": "your-site-name",
+        "ATLASSIAN_USER_EMAIL": "your-email@example.com",
+        "ATLASSIAN_API_TOKEN": "YOUR_ATLASSIAN_API_TOKEN"
+      }
+    },
+    "atlassian-jira": {
+      "command": "npx",
+      "args": ["-y", "@aashari/mcp-server-atlassian-jira"],
+      "env": {
+        "ATLASSIAN_SITE_NAME": "your-site-name",
+        "ATLASSIAN_USER_EMAIL": "your-email@example.com",
+        "ATLASSIAN_API_TOKEN": "YOUR_ATLASSIAN_API_TOKEN"
+      }
+    }
+  }
+}
