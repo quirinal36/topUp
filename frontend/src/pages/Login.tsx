@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
-import Button from '../components/common/Button';
 import { useAuthStore } from '../stores/authStore';
 import { getLoginUrl, socialLogin } from '../api/auth';
 

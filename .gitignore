@@ -89,3 +89,6 @@ Thumbs.db
 
 # MCP Config (contains API tokens)
 .mcp.json
+
+# Vercel
+.vercel

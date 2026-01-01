@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Moon, Sun, Key, Link2, Shield } from 'lucide-react';
+import { Moon, Sun, Key, Link2 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';

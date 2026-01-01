@@ -6,7 +6,7 @@ interface TransactionListProps {
   showCustomer?: boolean;
 }
 
-export default function TransactionList({ transactions, showCustomer = false }: TransactionListProps) {
+export default function TransactionList({ transactions, showCustomer: _showCustomer = false }: TransactionListProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원';
   };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Minus, Phone, Calendar, CreditCard } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Phone, Calendar } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import ChargeModal from '../components/transaction/ChargeModal';
