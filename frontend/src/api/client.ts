@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+// API 베이스 URL (환경 변수 또는 기본값)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 // API 클라이언트 생성
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
