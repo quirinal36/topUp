@@ -1,32 +1,23 @@
 """
 카페 선결제 관리 시스템 - FastAPI 메인 애플리케이션
 """
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 
 from app.config import get_settings
 from app.routers import auth_router, customers_router, transactions_router, dashboard_router
 
 settings = get_settings()
 
+# Vercel 환경인지 확인
+IS_VERCEL = os.environ.get("VERCEL", False)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """애플리케이션 시작/종료 시 실행되는 작업"""
-    # 시작 시
-    print("🚀 카페 선결제 관리 시스템 시작")
-    yield
-    # 종료 시
-    print("👋 카페 선결제 관리 시스템 종료")
-
-
-# FastAPI 앱 생성
+# FastAPI 앱 생성 (Vercel에서는 lifespan 비활성화)
 app = FastAPI(
     title="카페 선결제 관리 시스템 API",
     description="카페 선결제(예치금) 관리를 위한 REST API",
     version="1.0.0",
-    lifespan=lifespan
 )
 
 # CORS 설정

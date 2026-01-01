@@ -3,6 +3,24 @@
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=qvsmvvgvsklhkxryhxgv"
+    },
+    "atlassian-confluence": {
+      "command": "npx",
+      "args": ["-y", "@aashari/mcp-server-atlassian-confluence"],
+      "env": {
+        "ATLASSIAN_SITE_NAME": "letscoding",
+        "ATLASSIAN_USER_EMAIL": "turboguy36@gmail.com",
+        "ATLASSIAN_API_TOKEN": "ATATT3xFfGF0Gy-Q2UF7be-lJh_hMSK1wlZAqOtCTMV2HwhZJcTcd3nT16OoL05aU9ApbkA9waXm_QiH7vZDxef9K10bQqeUT9gAtOMFLeTq68lA76r9zCcTVvBWQwD5IzyBaqKjYjCkA1_XApJfOz8_v2lSMtZsPLdEVioq4Rbgx6ZfrI69oRE=A0E98DF8"
+      }
+    },
+    "atlassian-jira": {
+      "command": "npx",
+      "args": ["-y", "@aashari/mcp-server-atlassian-jira"],
+      "env": {
+        "ATLASSIAN_SITE_NAME": "letscoding",
+        "ATLASSIAN_USER_EMAIL": "turboguy36@gmail.com",
+        "ATLASSIAN_API_TOKEN": "ATATT3xFfGF0Gy-Q2UF7be-lJh_hMSK1wlZAqOtCTMV2HwhZJcTcd3nT16OoL05aU9ApbkA9waXm_QiH7vZDxef9K10bQqeUT9gAtOMFLeTq68lA76r9zCcTVvBWQwD5IzyBaqKjYjCkA1_XApJfOz8_v2lSMtZsPLdEVioq4Rbgx6ZfrI69oRE=A0E98DF8"
+      }
     }
   }
 }
