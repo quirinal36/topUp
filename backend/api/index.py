@@ -1,14 +1,15 @@
 """
 Vercel Serverless Function Entry Point for FastAPI
 """
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
 import sys
 import os
 
-# 상위 디렉토리를 path에 추가
+# 상위 디렉토리를 path에 추가 (app 모듈을 찾기 위해)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 
 from app.config import get_settings
 from app.routers import auth_router, customers_router, transactions_router, dashboard_router
@@ -52,3 +53,7 @@ async def root():
 async def health_check():
     """헬스 체크"""
     return {"status": "healthy"}
+
+
+# Vercel Serverless Handler (필수!)
+handler = Mangum(app, lifespan="off")
