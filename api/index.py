@@ -9,32 +9,11 @@ import os
 backend_path = os.path.join(os.path.dirname(__file__), '..', 'backend')
 sys.path.insert(0, backend_path)
 
-# 디버그: 환경 변수 확인
-print(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'not set')}")
-print(f"Backend path: {backend_path}")
-print(f"sys.path: {sys.path[:3]}")
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 
-try:
-    from fastapi import FastAPI
-    from fastapi.middleware.cors import CORSMiddleware
-    from mangum import Mangum
-    print("FastAPI, Mangum imported successfully")
-
-    from app.config import get_settings
-    print("config imported successfully")
-
-    from app.routers import auth_router, customers_router, transactions_router, dashboard_router
-    print("routers imported successfully")
-
-    settings = get_settings()
-    print(f"Settings loaded: app_env={settings.app_env}")
-except Exception as e:
-    print(f"Import error: {type(e).__name__}: {e}")
-    import traceback
-    traceback.print_exc()
-    raise
-
-# FastAPI 앱 생성
+# 먼저 간단한 앱 생성
 app = FastAPI(
     title="카페 선결제 관리 시스템 API",
     description="카페 선결제(예치금) 관리를 위한 REST API",
@@ -43,20 +22,14 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 
-# CORS 설정
+# 기본 CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 라우터 등록
-app.include_router(auth_router)
-app.include_router(customers_router)
-app.include_router(transactions_router)
-app.include_router(dashboard_router)
 
 
 @app.get("/api")
@@ -73,6 +46,63 @@ async def root():
 async def health_check():
     """헬스 체크"""
     return {"status": "healthy"}
+
+
+@app.get("/api/debug")
+async def debug_info():
+    """디버그 정보"""
+    import_status = {}
+
+    # 환경 변수 확인
+    env_vars = ["SUPABASE_URL", "SUPABASE_KEY", "JWT_SECRET_KEY"]
+    env_status = {k: "set" if os.environ.get(k) else "missing" for k in env_vars}
+
+    # 모듈 import 테스트
+    try:
+        from app.config import get_settings
+        import_status["config"] = "ok"
+        settings = get_settings()
+        import_status["settings"] = f"ok (app_env={settings.app_env})"
+    except Exception as e:
+        import_status["config"] = f"error: {e}"
+
+    try:
+        from app.routers import auth_router
+        import_status["routers"] = "ok"
+    except Exception as e:
+        import_status["routers"] = f"error: {e}"
+
+    return {
+        "sys_path": sys.path[:3],
+        "backend_path": backend_path,
+        "env_status": env_status,
+        "import_status": import_status
+    }
+
+
+# 라우터 등록 시도
+try:
+    from app.config import get_settings
+    from app.routers import auth_router, customers_router, transactions_router, dashboard_router
+
+    settings = get_settings()
+
+    # CORS 업데이트
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(auth_router)
+    app.include_router(customers_router)
+    app.include_router(transactions_router)
+    app.include_router(dashboard_router)
+except Exception as e:
+    # 라우터 등록 실패해도 기본 엔드포인트는 작동
+    print(f"Router registration failed: {e}")
 
 
 # Vercel Serverless Handler
