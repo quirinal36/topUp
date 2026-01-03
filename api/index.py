@@ -1,27 +1,19 @@
 """
-Vercel Serverless Function Entry Point - Minimal Test Version
+Vercel Serverless Function Entry Point - Basic HTTP Handler Test
 """
-from fastapi import FastAPI
-from mangum import Mangum
-import os
-
-app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json")
+from http.server import BaseHTTPRequestHandler
+import json
 
 
-@app.get("/api")
-async def root():
-    return {"message": "API is working!", "python_path": os.environ.get("PYTHONPATH", "not set")}
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
 
-
-@app.get("/api/health")
-async def health_check():
-    return {"status": "healthy"}
-
-
-@app.get("/api/env")
-async def env_check():
-    env_vars = ["SUPABASE_URL", "SUPABASE_KEY", "JWT_SECRET_KEY", "PYTHONPATH"]
-    return {k: "set" if os.environ.get(k) else "missing" for k in env_vars}
-
-
-handler = Mangum(app, lifespan="off")
+        response = {
+            "message": "API is working!",
+            "path": self.path
+        }
+        self.wfile.write(json.dumps(response).encode())
+        return
