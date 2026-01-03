@@ -6,16 +6,33 @@ import sys
 import os
 
 # backend 모듈을 import 할 수 있도록 경로 추가
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+backend_path = os.path.join(os.path.dirname(__file__), '..', 'backend')
+sys.path.insert(0, backend_path)
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from mangum import Mangum
+# 디버그: 환경 변수 확인
+print(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'not set')}")
+print(f"Backend path: {backend_path}")
+print(f"sys.path: {sys.path[:3]}")
 
-from app.config import get_settings
-from app.routers import auth_router, customers_router, transactions_router, dashboard_router
+try:
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from mangum import Mangum
+    print("FastAPI, Mangum imported successfully")
 
-settings = get_settings()
+    from app.config import get_settings
+    print("config imported successfully")
+
+    from app.routers import auth_router, customers_router, transactions_router, dashboard_router
+    print("routers imported successfully")
+
+    settings = get_settings()
+    print(f"Settings loaded: app_env={settings.app_env}")
+except Exception as e:
+    print(f"Import error: {type(e).__name__}: {e}")
+    import traceback
+    traceback.print_exc()
+    raise
 
 # FastAPI 앱 생성
 app = FastAPI(
