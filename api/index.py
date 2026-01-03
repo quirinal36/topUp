@@ -1,6 +1,6 @@
 """
 Vercel Serverless Function Entry Point
-FastAPI + Mangum
+FastAPI + a2wsgi (ASGI to WSGI adapter)
 """
 import sys
 import os
@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from mangum import Mangum
+from a2wsgi import ASGIMiddleware
 
 app = FastAPI(
     title="카페 선결제 관리 시스템 API",
@@ -61,5 +61,5 @@ except Exception as e:
     print(f"Warning: Could not load routers: {e}")
 
 
-# Vercel handler
-handler = Mangum(app, lifespan="off")
+# Vercel WSGI handler
+handler = ASGIMiddleware(app)
