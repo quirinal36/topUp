@@ -88,7 +88,9 @@ async def debug_env():
     import os
     return {
         "NAVER_REDIRECT_URI": os.environ.get("NAVER_REDIRECT_URI", "NOT_SET"),
-        "naver_redirect_uri_lower": os.environ.get("naver_redirect_uri", "NOT_SET"),
+        "KAKAO_REDIRECT_URI": os.environ.get("KAKAO_REDIRECT_URI", "NOT_SET"),
+        "KAKAO_CLIENT_ID": os.environ.get("KAKAO_CLIENT_ID", "NOT_SET")[:10] + "..." if os.environ.get("KAKAO_CLIENT_ID") else "NOT_SET",
+        "KAKAO_CLIENT_SECRET": "SET" if os.environ.get("KAKAO_CLIENT_SECRET") else "NOT_SET",
     }
 
 
