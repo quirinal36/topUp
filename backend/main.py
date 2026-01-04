@@ -4,7 +4,6 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from app.config import get_settings
 from app.routers import auth_router, customers_router, transactions_router, dashboard_router
 
