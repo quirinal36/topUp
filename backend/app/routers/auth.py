@@ -82,6 +82,16 @@ async def social_login(
         )
 
 
+@router.get("/debug/env")
+async def debug_env():
+    """환경변수 디버그 (임시)"""
+    import os
+    return {
+        "NAVER_REDIRECT_URI": os.environ.get("NAVER_REDIRECT_URI", "NOT_SET"),
+        "naver_redirect_uri_lower": os.environ.get("naver_redirect_uri", "NOT_SET"),
+    }
+
+
 @router.get("/login/{provider}/url")
 async def get_login_url(provider: str):
     """소셜 로그인 URL 반환"""
