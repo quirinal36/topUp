@@ -64,13 +64,22 @@ async def social_login(
     소셜 로그인
     - provider: naver 또는 kakao
     """
-    result = await auth_service.social_login(provider, request.code)
-    if not result:
+    try:
+        result = await auth_service.social_login(provider, request.code)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="소셜 로그인에 실패했습니다. 인증 코드가 만료되었거나 redirect_uri가 일치하지 않을 수 있습니다."
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[LOGIN] 소셜 로그인 에러: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="소셜 로그인에 실패했습니다"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"소셜 로그인 처리 중 오류가 발생했습니다: {str(e)}"
         )
-    return result
 
 
 @router.get("/login/{provider}/url")

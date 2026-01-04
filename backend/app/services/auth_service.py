@@ -52,21 +52,30 @@ class AuthService:
 
     async def get_naver_user_info(self, code: str) -> Optional[Dict[str, Any]]:
         """네이버 OAuth로 사용자 정보 조회"""
+        logger.debug(f"[NAVER] 네이버 로그인 시작 - code: {code[:20]}...")
+        logger.debug(f"[NAVER] 설정값 - client_id: {settings.naver_client_id}, redirect_uri: {settings.naver_redirect_uri}")
+
         async with httpx.AsyncClient() as client:
             # 액세스 토큰 요청
+            token_request_data = {
+                "grant_type": "authorization_code",
+                "client_id": settings.naver_client_id,
+                "client_secret": settings.naver_client_secret,
+                "code": code,
+                "redirect_uri": settings.naver_redirect_uri
+            }
+            logger.debug(f"[NAVER] 토큰 요청 데이터: {token_request_data}")
+
             token_response = await client.post(
                 "https://nid.naver.com/oauth2.0/token",
-                data={
-                    "grant_type": "authorization_code",
-                    "client_id": settings.naver_client_id,
-                    "client_secret": settings.naver_client_secret,
-                    "code": code,
-                    "redirect_uri": settings.naver_redirect_uri
-                }
+                data=token_request_data
             )
+            logger.debug(f"[NAVER] 토큰 응답 상태: {token_response.status_code}")
             token_data = token_response.json()
+            logger.debug(f"[NAVER] 토큰 응답 데이터: {token_data}")
 
             if "access_token" not in token_data:
+                logger.error(f"[NAVER] 액세스 토큰 없음! 에러: {token_data.get('error', 'unknown')}, 설명: {token_data.get('error_description', 'unknown')}")
                 return None
 
             # 사용자 정보 요청
