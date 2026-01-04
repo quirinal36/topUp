@@ -6,7 +6,7 @@ a2wsgi==1.10.8
 python-multipart==0.0.6
 
 # Supabase 클라이언트
-supabase==2.3.4
+supabase>=2.18.1
 
 # 환경 변수 및 설정
 python-dotenv==1.0.0
