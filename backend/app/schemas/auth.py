@@ -1,8 +1,9 @@
 """
 인증 관련 스키마
 """
+import re
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TokenResponse(BaseModel):
@@ -10,18 +11,52 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+    shop_id: Optional[str] = None
 
 
-class ShopCreate(BaseModel):
-    """상점 생성 요청"""
-    name: str = Field(..., min_length=1, max_length=100, description="상점명")
-    pin: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$", description="4자리 PIN")
+class LoginRequest(BaseModel):
+    """로그인 요청"""
+    email: str = Field(..., description="이메일")
+    password: str = Field(..., min_length=8, description="비밀번호")
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError('올바른 이메일 형식이 아닙니다')
+        return v.lower()
+
+
+class RegisterRequest(BaseModel):
+    """회원가입 요청"""
+    email: str = Field(..., description="이메일")
+    password: str = Field(..., min_length=8, description="비밀번호 (8자 이상)")
+    shop_name: str = Field(..., min_length=1, max_length=100, description="상점명")
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError('올바른 이메일 형식이 아닙니다')
+        return v.lower()
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if not any(c.isalpha() for c in v):
+            raise ValueError('비밀번호는 영문을 포함해야 합니다')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('비밀번호는 숫자를 포함해야 합니다')
+        return v
 
 
 class ShopResponse(BaseModel):
     """상점 응답"""
     id: str
     name: str
+    email: Optional[str] = None
     created_at: str
 
 
@@ -41,17 +76,3 @@ class PinChangeRequest(BaseModel):
     """PIN 변경 요청"""
     current_pin: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$")
     new_pin: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$")
-
-
-class SocialLoginRequest(BaseModel):
-    """소셜 로그인 요청"""
-    code: str = Field(..., description="OAuth 인증 코드")
-    state: Optional[str] = Field(None, description="CSRF 방지용 state")
-
-
-class SocialAccountLink(BaseModel):
-    """소셜 계정 연동 정보"""
-    provider: str
-    email: Optional[str]
-    is_primary: bool
-    linked_at: str

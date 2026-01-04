@@ -1,15 +1,23 @@
 import apiClient from './client';
 import { LoginResponse } from '../types';
 
-// 소셜 로그인 URL 가져오기
-export const getLoginUrl = async (provider: 'naver' | 'kakao'): Promise<string> => {
-  const response = await apiClient.get(`/auth/login/${provider}/url`);
-  return response.data.url;
+// 이메일/비밀번호 로그인
+export const login = async (email: string, password: string): Promise<LoginResponse> => {
+  const response = await apiClient.post('/auth/login', { email, password });
+  return response.data;
 };
 
-// 소셜 로그인 처리
-export const socialLogin = async (provider: string, code: string): Promise<LoginResponse> => {
-  const response = await apiClient.post(`/auth/login/${provider}`, { code });
+// 회원가입
+export const register = async (
+  email: string,
+  password: string,
+  shopName: string
+): Promise<LoginResponse> => {
+  const response = await apiClient.post('/auth/register', {
+    email,
+    password,
+    shop_name: shopName,
+  });
   return response.data;
 };
 
@@ -35,14 +43,9 @@ export const changePin = async (currentPin: string, newPin: string): Promise<voi
 export const getCurrentShop = async (): Promise<{
   id: string;
   name: string;
+  email?: string;
   created_at: string;
 }> => {
   const response = await apiClient.get('/auth/me');
-  return response.data;
-};
-
-// 연동된 소셜 계정 목록
-export const getSocialAccounts = async () => {
-  const response = await apiClient.get('/auth/social-accounts');
   return response.data;
 };

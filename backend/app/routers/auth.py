@@ -1,11 +1,10 @@
 """
 인증 API 라우터
-소셜 로그인, PIN 관리 등
+이메일/비밀번호 로그인, PIN 관리 등
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional
 
 # 디버그 로깅 설정
 logger = logging.getLogger(__name__)
@@ -16,13 +15,12 @@ from ..services.auth_service import AuthService
 from ..services.pin_service import PinService
 from ..schemas.auth import (
     TokenResponse,
-    ShopCreate,
+    LoginRequest,
+    RegisterRequest,
     ShopResponse,
     PinVerifyRequest,
     PinVerifyResponse,
     PinChangeRequest,
-    SocialLoginRequest,
-    SocialAccountLink
 )
 
 router = APIRouter(prefix="/api/auth", tags=["인증"])
@@ -54,74 +52,54 @@ async def get_current_shop(
     return shop_id
 
 
-@router.post("/login/{provider}", response_model=TokenResponse)
-async def social_login(
-    provider: str,
-    request: SocialLoginRequest,
+@router.post("/login", response_model=TokenResponse)
+async def login(
+    request: LoginRequest,
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """
-    소셜 로그인
-    - provider: naver 또는 kakao
-    """
+    """이메일/비밀번호 로그인"""
     try:
-        result = await auth_service.social_login(provider, request.code)
+        result = await auth_service.login(request.email, request.password)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="소셜 로그인에 실패했습니다. 인증 코드가 만료되었거나 redirect_uri가 일치하지 않을 수 있습니다."
+                detail="이메일 또는 비밀번호가 올바르지 않습니다"
             )
         return result
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[LOGIN] 소셜 로그인 에러: {str(e)}")
+        logger.error(f"[LOGIN] 로그인 에러: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"소셜 로그인 처리 중 오류가 발생했습니다: {str(e)}"
+            detail="로그인 처리 중 오류가 발생했습니다"
         )
 
 
-@router.get("/debug/env")
-async def debug_env():
-    """환경변수 디버그 (임시)"""
-    import os
-    return {
-        "NAVER_REDIRECT_URI": os.environ.get("NAVER_REDIRECT_URI", "NOT_SET"),
-        "KAKAO_REDIRECT_URI": os.environ.get("KAKAO_REDIRECT_URI", "NOT_SET"),
-        "KAKAO_CLIENT_ID": os.environ.get("KAKAO_CLIENT_ID", "NOT_SET")[:10] + "..." if os.environ.get("KAKAO_CLIENT_ID") else "NOT_SET",
-        "KAKAO_CLIENT_SECRET": "SET" if os.environ.get("KAKAO_CLIENT_SECRET") else "NOT_SET",
-    }
-
-
-@router.get("/login/{provider}/url")
-async def get_login_url(provider: str):
-    """소셜 로그인 URL 반환"""
-    from ..config import get_settings
-    settings = get_settings()
-
-    if provider.lower() == "naver":
-        url = (
-            f"https://nid.naver.com/oauth2.0/authorize"
-            f"?client_id={settings.naver_client_id}"
-            f"&redirect_uri={settings.naver_redirect_uri}"
-            f"&response_type=code"
-            f"&state=naver"
+@router.post("/register", response_model=TokenResponse)
+async def register(
+    request: RegisterRequest,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """회원가입"""
+    try:
+        result = await auth_service.register(
+            request.email,
+            request.password,
+            request.shop_name
         )
-    elif provider.lower() == "kakao":
-        url = (
-            f"https://kauth.kakao.com/oauth/authorize"
-            f"?client_id={settings.kakao_client_id}"
-            f"&redirect_uri={settings.kakao_redirect_uri}"
-            f"&response_type=code"
-        )
-    else:
+        return result
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="지원하지 않는 소셜 로그인입니다"
+            detail=str(e)
         )
-
-    return {"url": url}
+    except Exception as e:
+        logger.error(f"[REGISTER] 회원가입 에러: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="회원가입 처리 중 오류가 발생했습니다"
+        )
 
 
 @router.post("/pin/verify", response_model=PinVerifyResponse)
@@ -162,7 +140,7 @@ async def reset_pin(
     shop_id: str = Depends(get_current_shop),
     pin_service: PinService = Depends(get_pin_service)
 ):
-    """PIN 재설정 (소셜 로그인 재인증 후)"""
+    """PIN 재설정 (비밀번호 재인증 후)"""
     success = await pin_service.reset_pin(shop_id, request.pin)
     if not success:
         raise HTTPException(
@@ -172,54 +150,16 @@ async def reset_pin(
     return {"message": "PIN이 재설정되었습니다"}
 
 
-@router.post("/link/{provider}")
-async def link_social_account(
-    provider: str,
-    request: SocialLoginRequest,
-    shop_id: str = Depends(get_current_shop),
-    auth_service: AuthService = Depends(get_auth_service)
-):
-    """추가 소셜 계정 연동"""
-    success = await auth_service.link_social_account(shop_id, provider, request.code)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="소셜 계정 연동에 실패했습니다. 이미 다른 상점에 연동된 계정일 수 있습니다."
-        )
-    return {"message": "소셜 계정이 연동되었습니다"}
-
-
-@router.get("/me")
+@router.get("/me", response_model=ShopResponse)
 async def get_current_shop_info(
     shop_id: str = Depends(get_current_shop),
     db=Depends(get_db)
 ):
     """현재 로그인된 상점 정보 조회"""
-    result = db.table("shops").select("id, name, created_at").eq("id", shop_id).single().execute()
+    result = db.table("shops").select("id, name, email, created_at").eq("id", shop_id).single().execute()
     if not result.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="상점 정보를 찾을 수 없습니다"
         )
     return result.data
-
-
-@router.get("/social-accounts")
-async def get_linked_social_accounts(
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
-):
-    """연동된 소셜 계정 목록 조회"""
-    result = db.table("social_accounts").select(
-        "provider, email, is_primary, created_at"
-    ).eq("shop_id", shop_id).execute()
-
-    return [
-        SocialAccountLink(
-            provider=acc["provider"],
-            email=acc.get("email"),
-            is_primary=acc["is_primary"],
-            linked_at=acc["created_at"]
-        )
-        for acc in result.data
-    ]

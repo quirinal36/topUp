@@ -1,6 +1,6 @@
 """
 환경 설정 모듈
-Supabase, JWT, 소셜 로그인 등의 설정을 관리합니다.
+Supabase, JWT 등의 설정을 관리합니다.
 """
 from pydantic_settings import BaseSettings
 from functools import lru_cache
@@ -19,16 +19,6 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-
-    # 네이버 소셜 로그인
-    naver_client_id: str
-    naver_client_secret: str
-    naver_redirect_uri: str
-
-    # 카카오 소셜 로그인
-    kakao_client_id: str
-    kakao_client_secret: str
-    kakao_redirect_uri: str
 
     # 앱 설정
     app_env: str = "development"

@@ -1,12 +1,13 @@
 """
 인증 서비스
-소셜 로그인, JWT 토큰 관리 등을 담당
+이메일/비밀번호 인증, JWT 토큰 관리 등을 담당
 """
 import logging
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from jose import jwt, JWTError
-import httpx
+import bcrypt
 from supabase import Client
 
 from ..config import get_settings
@@ -29,6 +30,17 @@ class AuthService:
         self.admin_db = get_supabase_admin_client()
         self.pin_service = PinService(db)
 
+    def hash_password(self, password: str) -> str:
+        """비밀번호 해시"""
+        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    def verify_password(self, password: str, password_hash: str) -> bool:
+        """비밀번호 검증"""
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+        except Exception:
+            return False
+
     def create_access_token(self, shop_id: str) -> str:
         """JWT 액세스 토큰 생성"""
         expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
@@ -50,154 +62,61 @@ class AuthService:
         except JWTError:
             return None
 
-    async def get_naver_user_info(self, code: str) -> Optional[Dict[str, Any]]:
-        """네이버 OAuth로 사용자 정보 조회"""
-        logger.debug(f"[NAVER] 네이버 로그인 시작 - code: {code[:20]}...")
-        logger.debug(f"[NAVER] 설정값 - client_id: {settings.naver_client_id}, redirect_uri: {settings.naver_redirect_uri}")
+    async def login(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+        """이메일/비밀번호 로그인"""
+        logger.debug(f"[LOGIN] 로그인 시도 - email: {email}")
 
-        async with httpx.AsyncClient() as client:
-            # 액세스 토큰 요청
-            token_request_data = {
-                "grant_type": "authorization_code",
-                "client_id": settings.naver_client_id,
-                "client_secret": settings.naver_client_secret,
-                "code": code,
-                "redirect_uri": settings.naver_redirect_uri
-            }
-            logger.debug(f"[NAVER] 토큰 요청 데이터: {token_request_data}")
+        # 이메일로 상점 조회 (admin 클라이언트로 RLS 우회)
+        result = self.admin_db.table("shops").select("*").eq("email", email.lower()).execute()
 
-            token_response = await client.post(
-                "https://nid.naver.com/oauth2.0/token",
-                data=token_request_data
-            )
-            logger.debug(f"[NAVER] 토큰 응답 상태: {token_response.status_code}")
-            token_data = token_response.json()
-            logger.debug(f"[NAVER] 토큰 응답 데이터: {token_data}")
-
-            if "access_token" not in token_data:
-                logger.error(f"[NAVER] 액세스 토큰 없음! 에러: {token_data.get('error', 'unknown')}, 설명: {token_data.get('error_description', 'unknown')}")
-                return None
-
-            # 사용자 정보 요청
-            user_response = await client.get(
-                "https://openapi.naver.com/v1/nid/me",
-                headers={"Authorization": f"Bearer {token_data['access_token']}"}
-            )
-            user_data = user_response.json()
-
-            if user_data.get("resultcode") != "00":
-                return None
-
-            response = user_data.get("response", {})
-            return {
-                "provider": "NAVER",
-                "provider_user_id": response.get("id"),
-                "email": response.get("email"),
-                "name": response.get("name")
-            }
-
-    async def get_kakao_user_info(self, code: str) -> Optional[Dict[str, Any]]:
-        """카카오 OAuth로 사용자 정보 조회"""
-        logger.debug(f"[KAKAO] 카카오 로그인 시작 - code: {code[:20]}...")
-        logger.debug(f"[KAKAO] 설정값 - client_id: {settings.kakao_client_id}, redirect_uri: {settings.kakao_redirect_uri}")
-
-        async with httpx.AsyncClient() as client:
-            # 액세스 토큰 요청
-            token_request_data = {
-                "grant_type": "authorization_code",
-                "client_id": settings.kakao_client_id,
-                "client_secret": settings.kakao_client_secret,
-                "code": code,
-                "redirect_uri": settings.kakao_redirect_uri
-            }
-            logger.debug(f"[KAKAO] 토큰 요청 데이터: {token_request_data}")
-
-            token_response = await client.post(
-                "https://kauth.kakao.com/oauth/token",
-                data=token_request_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-            )
-            logger.debug(f"[KAKAO] 토큰 응답 상태: {token_response.status_code}")
-            token_data = token_response.json()
-            logger.debug(f"[KAKAO] 토큰 응답 데이터: {token_data}")
-
-            if "access_token" not in token_data:
-                logger.error(f"[KAKAO] 액세스 토큰 없음! 에러: {token_data.get('error', 'unknown')}, 설명: {token_data.get('error_description', 'unknown')}")
-                return None
-
-            logger.debug(f"[KAKAO] 액세스 토큰 획득 성공")
-
-            # 사용자 정보 요청
-            user_response = await client.get(
-                "https://kapi.kakao.com/v2/user/me",
-                headers={"Authorization": f"Bearer {token_data['access_token']}"}
-            )
-            logger.debug(f"[KAKAO] 사용자 정보 응답 상태: {user_response.status_code}")
-            user_data = user_response.json()
-            logger.debug(f"[KAKAO] 사용자 정보: {user_data}")
-
-            kakao_account = user_data.get("kakao_account", {})
-            result = {
-                "provider": "KAKAO",
-                "provider_user_id": str(user_data.get("id")),
-                "email": kakao_account.get("email"),
-                "name": kakao_account.get("profile", {}).get("nickname")
-            }
-            logger.debug(f"[KAKAO] 반환할 사용자 정보: {result}")
-            return result
-
-    async def social_login(self, provider: str, code: str) -> Optional[Dict[str, Any]]:
-        """소셜 로그인 처리"""
-        logger.debug(f"[SOCIAL_LOGIN] 소셜 로그인 시작 - provider: {provider}, code: {code[:20]}...")
-
-        # 소셜 사용자 정보 조회
-        if provider.upper() == "NAVER":
-            user_info = await self.get_naver_user_info(code)
-        elif provider.upper() == "KAKAO":
-            user_info = await self.get_kakao_user_info(code)
-        else:
-            logger.error(f"[SOCIAL_LOGIN] 지원하지 않는 provider: {provider}")
+        if not result.data:
+            logger.debug(f"[LOGIN] 이메일을 찾을 수 없음: {email}")
             return None
 
-        if not user_info:
-            logger.error(f"[SOCIAL_LOGIN] 사용자 정보 조회 실패 - provider: {provider}")
+        shop = result.data[0]
+
+        # 비밀번호 검증
+        if not shop.get("password_hash") or not self.verify_password(password, shop["password_hash"]):
+            logger.debug(f"[LOGIN] 비밀번호 불일치: {email}")
             return None
 
-        logger.debug(f"[SOCIAL_LOGIN] 사용자 정보 조회 성공: {user_info}")
+        logger.debug(f"[LOGIN] 로그인 성공 - shop_id: {shop['id']}")
 
-        # 기존 소셜 계정 조회 (admin 클라이언트로 RLS 우회)
-        result = self.admin_db.table("social_accounts").select("*").eq(
-            "provider", user_info["provider"]
-        ).eq("provider_user_id", user_info["provider_user_id"]).execute()
+        # 토큰 생성
+        access_token = self.create_access_token(shop["id"])
 
-        if result.data:
-            # 기존 계정으로 로그인
-            social_account = result.data[0]
-            shop_id = social_account["shop_id"]
-        else:
-            # 신규 상점 및 소셜 계정 생성
-            import uuid
-            shop_id = str(uuid.uuid4())
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": settings.access_token_expire_minutes * 60,
+            "shop_id": shop["id"]
+        }
 
-            # 상점 생성 (PIN은 나중에 설정) - admin 클라이언트 사용
-            self.admin_db.table("shops").insert({
-                "id": shop_id,
-                "name": user_info.get("name", "내 카페"),
-                "pin_hash": "",  # 최초 설정 필요
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
-            }).execute()
+    async def register(self, email: str, password: str, shop_name: str) -> Dict[str, Any]:
+        """신규 회원가입"""
+        logger.debug(f"[REGISTER] 회원가입 시도 - email: {email}, shop_name: {shop_name}")
 
-            # 소셜 계정 연결 - admin 클라이언트 사용
-            self.admin_db.table("social_accounts").insert({
-                "id": str(uuid.uuid4()),
-                "shop_id": shop_id,
-                "provider": user_info["provider"],
-                "provider_user_id": user_info["provider_user_id"],
-                "email": user_info.get("email"),
-                "is_primary": True,
-                "created_at": datetime.now().isoformat()
-            }).execute()
+        # 이메일 중복 체크 (admin 클라이언트로 RLS 우회)
+        existing = self.admin_db.table("shops").select("id").eq("email", email.lower()).execute()
+        if existing.data:
+            logger.debug(f"[REGISTER] 이메일 중복: {email}")
+            raise ValueError("이미 사용 중인 이메일입니다")
+
+        # 상점 생성
+        shop_id = str(uuid.uuid4())
+        password_hash = self.hash_password(password)
+
+        self.admin_db.table("shops").insert({
+            "id": shop_id,
+            "email": email.lower(),
+            "password_hash": password_hash,
+            "name": shop_name,
+            "pin_hash": "",  # 최초 설정 필요
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }).execute()
+
+        logger.debug(f"[REGISTER] 회원가입 성공 - shop_id: {shop_id}")
 
         # 토큰 생성
         access_token = self.create_access_token(shop_id)
@@ -206,40 +125,5 @@ class AuthService:
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": settings.access_token_expire_minutes * 60,
-            "shop_id": shop_id,
-            "is_new": not bool(result.data)
+            "shop_id": shop_id
         }
-
-    async def link_social_account(self, shop_id: str, provider: str, code: str) -> bool:
-        """추가 소셜 계정 연동"""
-        if provider.upper() == "NAVER":
-            user_info = await self.get_naver_user_info(code)
-        elif provider.upper() == "KAKAO":
-            user_info = await self.get_kakao_user_info(code)
-        else:
-            return False
-
-        if not user_info:
-            return False
-
-        # 이미 연동된 계정인지 확인 - admin 클라이언트 사용
-        existing = self.admin_db.table("social_accounts").select("*").eq(
-            "provider", user_info["provider"]
-        ).eq("provider_user_id", user_info["provider_user_id"]).execute()
-
-        if existing.data:
-            return False  # 이미 다른 상점에 연동됨
-
-        # 소셜 계정 연결 - admin 클라이언트 사용
-        import uuid
-        self.admin_db.table("social_accounts").insert({
-            "id": str(uuid.uuid4()),
-            "shop_id": shop_id,
-            "provider": user_info["provider"],
-            "provider_user_id": user_info["provider_user_id"],
-            "email": user_info.get("email"),
-            "is_primary": False,
-            "created_at": datetime.now().isoformat()
-        }).execute()
-
-        return True

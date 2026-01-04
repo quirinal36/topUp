@@ -21,13 +21,13 @@
 
 ### 3.0. 인증 및 보안 (Authentication & Security)
 
-#### 3.0.1. 소셜 로그인
-* **지원 플랫폼:** 네이버, 카카오
-* **계정 연동:** 동일 사용자가 네이버와 카카오 계정을 모두 사용할 경우, 하나의 상점 계정으로 연동
-    * 최초 로그인한 소셜 계정이 주 계정이 됨
-    * 추가 소셜 계정은 설정 화면에서 연동 가능
-    * 연동된 계정은 어떤 것으로 로그인해도 동일한 상점 데이터에 접근
+#### 3.0.1. 이메일/비밀번호 로그인
+* **로그인 방식:** 이메일 + 비밀번호 기반 인증
+* **회원가입:** 이메일, 비밀번호, 상점명 입력으로 신규 상점 등록
 * **자동 로그인:** 기기별 로그인 상태 유지 (선택적 활성화)
+* **비밀번호 정책:**
+    * 최소 8자 이상
+    * 영문, 숫자 조합 필수
 
 #### 3.0.2. 데이터 보호 PIN
 * **적용 범위:** 민감한 데이터 수정 작업 시 4자리 숫자 비밀번호 입력 필수
@@ -38,7 +38,7 @@
 * **PIN 설정:** 최초 상점 등록 시 필수 설정, 이후 변경 가능
 * **보안 정책:**
     * 5회 연속 실패 시 1분간 입력 차단
-    * PIN 분실 시 소셜 로그인 재인증 후 재설정
+    * PIN 분실 시 비밀번호 재인증 후 재설정
 
 ### 3.1. 고객 관리 (Customer Management)
 * **신규 등록:** 이름과 연락처 뒷자리(4자리)를 기반으로 신규 고객 등록
@@ -81,6 +81,8 @@
 | 컬럼명 | 타입 | 설명 |
 | :--- | :--- | :--- |
 | `id` | UUID (PK) | 상점 고유 식별자 |
+| `email` | String (Unique) | 로그인 이메일 |
+| `password_hash` | String | 비밀번호 해시값 |
 | `name` | String | 상점명 |
 | `pin_hash` | String | 4자리 PIN 해시값 |
 | `pin_failed_count` | Integer | PIN 연속 실패 횟수 (Default: 0) |
@@ -88,18 +90,7 @@
 | `created_at` | Timestamp | 상점 등록일 |
 | `updated_at` | Timestamp | 최종 수정일 |
 
-### 4.2. `social_accounts` 테이블 (소셜 계정 연동)
-| 컬럼명 | 타입 | 설명 |
-| :--- | :--- | :--- |
-| `id` | UUID (PK) | 고유 식별자 |
-| `shop_id` | UUID (FK) | 연결된 상점 ID |
-| `provider` | Enum | 소셜 플랫폼 (NAVER, KAKAO) |
-| `provider_user_id` | String | 소셜 플랫폼 사용자 ID |
-| `email` | String | 소셜 계정 이메일 (Nullable) |
-| `is_primary` | Boolean | 주 계정 여부 (Default: false) |
-| `created_at` | Timestamp | 연동일 |
-
-### 4.3. `customers` 테이블
+### 4.2. `customers` 테이블
 | 컬럼명 | 타입 | 설명 |
 | :--- | :--- | :--- |
 | `id` | UUID (PK) | 고유 식별자 |
@@ -109,7 +100,7 @@
 | `current_balance` | Integer | 현재 보유 잔액 (Default: 0) |
 | `created_at` | Timestamp | 최초 등록일 |
 
-### 4.4. `transactions` 테이블
+### 4.3. `transactions` 테이블
 | 컬럼명 | 타입 | 설명 |
 | :--- | :--- | :--- |
 | `id` | UUID (PK) | 거래 고유 ID |

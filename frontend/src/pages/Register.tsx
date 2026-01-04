@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Store } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
-import { login as apiLogin } from '../api/auth';
+import { register as apiRegister } from '../api/auth';
 
-export default function Login() {
+export default function Register() {
   const navigate = useNavigate();
   const { isAuthenticated, login } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [shopName, setShopName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -21,23 +24,50 @@ export default function Login() {
     }
   }, [isAuthenticated, navigate]);
 
+  const validatePassword = (password: string): string | null => {
+    if (password.length < 8) {
+      return '비밀번호는 8자 이상이어야 합니다';
+    }
+    if (!/[a-zA-Z]/.test(password)) {
+      return '비밀번호는 영문을 포함해야 합니다';
+    }
+    if (!/[0-9]/.test(password)) {
+      return '비밀번호는 숫자를 포함해야 합니다';
+    }
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // 비밀번호 유효성 검사
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    // 비밀번호 확인
+    if (password !== confirmPassword) {
+      setError('비밀번호가 일치하지 않습니다');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const response = await apiLogin(email, password);
+      const response = await apiRegister(email, password, shopName);
       await login(response.access_token);
       navigate('/');
     } catch (err: unknown) {
       const error = err as { response?: { status?: number; data?: { detail?: string } } };
-      if (error.response?.status === 401) {
-        setError('이메일 또는 비밀번호가 올바르지 않습니다');
+      if (error.response?.status === 400) {
+        setError(error.response.data?.detail || '회원가입에 실패했습니다');
       } else if (error.response?.data?.detail) {
         setError(error.response.data.detail);
       } else {
-        setError('로그인 중 오류가 발생했습니다');
+        setError('회원가입 중 오류가 발생했습니다');
       }
     } finally {
       setIsLoading(false);
@@ -58,10 +88,10 @@ export default function Login() {
           </p>
         </div>
 
-        {/* 로그인 카드 */}
+        {/* 회원가입 카드 */}
         <div className="bg-white dark:bg-[#2d2420] rounded-modal shadow-modal p-6">
           <h2 className="text-heading-3 text-center text-gray-900 dark:text-white mb-6">
-            로그인
+            회원가입
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -96,8 +126,9 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="********"
+                  placeholder="8자 이상, 영문+숫자"
                   required
+                  minLength={8}
                   className="w-full pl-10 pr-12 py-3 rounded-button border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1a1412] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <button
@@ -108,6 +139,55 @@ export default function Login() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                8자 이상, 영문과 숫자를 포함해주세요
+              </p>
+            </div>
+
+            {/* 비밀번호 확인 */}
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                비밀번호 확인
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="비밀번호 재입력"
+                  required
+                  className="w-full pl-10 pr-12 py-3 rounded-button border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1a1412] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* 상점명 입력 */}
+            <div>
+              <label htmlFor="shopName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                상점명
+              </label>
+              <div className="relative">
+                <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="shopName"
+                  type="text"
+                  value={shopName}
+                  onChange={(e) => setShopName(e.target.value)}
+                  placeholder="내 카페"
+                  required
+                  maxLength={100}
+                  className="w-full pl-10 pr-4 py-3 rounded-button border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1a1412] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
             </div>
 
             {/* 에러 메시지 */}
@@ -115,33 +195,33 @@ export default function Login() {
               <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
             )}
 
-            {/* 로그인 버튼 */}
+            {/* 회원가입 버튼 */}
             <button
               type="submit"
               disabled={isLoading}
               className="w-full min-h-touch flex items-center justify-center gap-2 px-4 py-3 rounded-button font-medium transition-colors bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? '로그인 중...' : '로그인'}
+              {isLoading ? '가입 중...' : '회원가입'}
             </button>
           </form>
 
-          {/* 회원가입 링크 */}
+          {/* 로그인 링크 */}
           <div className="mt-6 text-center">
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              계정이 없으신가요?{' '}
+              이미 계정이 있으신가요?{' '}
             </span>
             <Link
-              to="/register"
+              to="/login"
               className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline"
             >
-              회원가입
+              로그인
             </Link>
           </div>
         </div>
 
         {/* 하단 안내 */}
         <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">
-          로그인 시 서비스 이용약관에 동의하게 됩니다
+          회원가입 시 서비스 이용약관에 동의하게 됩니다
         </p>
       </div>
     </div>
