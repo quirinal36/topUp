@@ -52,7 +52,6 @@ async def health_check():
 
 
 # 라우터 등록 시도
-router_error = None
 try:
     from app.config import get_settings
     from app.routers import auth_router, customers_router, transactions_router, dashboard_router
@@ -73,14 +72,4 @@ try:
         allow_headers=["*"],
     )
 except Exception as e:
-    router_error = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
-    print(f"Warning: Could not load routers: {router_error}")
-
-
-@app.get("/api/debug/router-status")
-async def router_status():
-    """라우터 로딩 상태 확인"""
-    return {
-        "router_loaded": router_error is None,
-        "error": router_error
-    }
+    print(f"Warning: Could not load routers: {e}")
