@@ -1,33 +1,105 @@
-import { useEffect, useState } from 'react';
-import { Users, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Wallet, Search, Plus, Minus, UserPlus } from 'lucide-react';
 import Card from '../components/common/Card';
+import Button from '../components/common/Button';
+import Modal from '../components/common/Modal';
+import Input from '../components/common/Input';
+import ChargeModal from '../components/transaction/ChargeModal';
+import DeductModal from '../components/transaction/DeductModal';
 import { getDashboardSummary } from '../api/dashboard';
-import { DashboardSummary } from '../types';
+import { getCustomers, createCustomer } from '../api/customers';
+import { DashboardSummary, Customer } from '../types';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 30;
 
-  useEffect(() => {
-    const fetchSummary = async () => {
-      try {
-        const data = await getDashboardSummary();
-        setSummary(data);
-      } catch (error) {
-        console.error('Failed to fetch dashboard summary:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSummary();
-  }, []);
+  // Modal states
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
+  const [isDeductModalOpen, setIsDeductModalOpen] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원';
   };
 
-  if (isLoading) {
+  const fetchData = useCallback(async () => {
+    try {
+      const [summaryData, customerData] = await Promise.all([
+        getDashboardSummary(),
+        getCustomers({ query: searchQuery, page, page_size: pageSize }),
+      ]);
+      setSummary(summaryData);
+      setCustomers(customerData.customers);
+      setTotal(customerData.total);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchQuery, page]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    fetchData();
+  }, [fetchData]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  const handleChargeClick = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedCustomer(customer);
+    setIsChargeModalOpen(true);
+  };
+
+  const handleDeductClick = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedCustomer(customer);
+    setIsDeductModalOpen(true);
+  };
+
+  const handleTransactionSuccess = () => {
+    fetchData();
+  };
+
+  const handleAddCustomer = async () => {
+    if (!newCustomerName.trim()) return;
+
+    setIsAddingCustomer(true);
+    try {
+      await createCustomer({
+        name: newCustomerName.trim(),
+        phone_suffix: newCustomerPhone.trim() || '0000',
+      });
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      setIsAddCustomerModalOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Failed to create customer:', error);
+    } finally {
+      setIsAddingCustomer(false);
+    }
+  };
+
+  if (isLoading && !customers.length) {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
@@ -35,86 +107,229 @@ export default function Dashboard() {
     );
   }
 
-  const stats = [
-    {
-      title: '오늘 충전',
-      value: formatCurrency(summary?.today_total_charge || 0),
-      icon: TrendingUp,
-      color: 'text-success-500',
-      bgColor: 'bg-success-50 dark:bg-success-900/20',
-    },
-    {
-      title: '오늘 사용',
-      value: formatCurrency(summary?.today_total_deduct || 0),
-      icon: TrendingDown,
-      color: 'text-primary-500',
-      bgColor: 'bg-primary-50 dark:bg-primary-900/20',
-    },
-    {
-      title: '전체 예치금',
-      value: formatCurrency(summary?.total_balance || 0),
-      icon: Wallet,
-      color: 'text-warning-500',
-      bgColor: 'bg-warning-50 dark:bg-warning-900/20',
-    },
-    {
-      title: '총 고객',
-      value: `${summary?.total_customers || 0}명`,
-      icon: Users,
-      color: 'text-secondary-600',
-      bgColor: 'bg-secondary-100 dark:bg-secondary-900/20',
-    },
-  ];
-
   return (
     <div className="space-y-6">
-      <h1 className="text-heading-2 text-gray-900 dark:text-white">대시보드</h1>
+      {/* 총 예치금 Hero Section */}
+      <Card className="bg-gradient-to-r from-primary-500 to-primary-600 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-primary-100 text-sm font-medium">모든 고객 총 예치금</p>
+            <p className="text-4xl font-bold mt-1">
+              {formatCurrency(summary?.total_balance || 0)}
+            </p>
+            <p className="text-primary-200 text-sm mt-2">
+              총 {summary?.total_customers || 0}명의 고객
+            </p>
+          </div>
+          <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
+            <Wallet className="w-8 h-8 text-white" />
+          </div>
+        </div>
+      </Card>
 
-      {/* 통계 카드 */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.title}>
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full ${stat.bgColor} flex items-center justify-center`}>
-                  <Icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{stat.title}</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
+      {/* 검색 및 고객 추가 */}
+      <div className="flex gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="고객 이름 또는 연락처로 검색..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 rounded-button border border-gray-200 dark:border-primary-800/50 bg-white dark:bg-primary-900/20 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <Button onClick={() => setIsAddCustomerModalOpen(true)}>
+          <UserPlus className="w-5 h-5 mr-1" />
+          고객 등록
+        </Button>
       </div>
 
-      {/* 오늘의 요약 */}
-      <Card>
-        <h2 className="text-heading-3 text-gray-900 dark:text-white mb-4">오늘의 요약</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="p-4 bg-success-50 dark:bg-success-900/20 rounded-card">
-            <p className="text-sm text-success-700 dark:text-success-400">오늘 충전 금액</p>
-            <p className="text-2xl font-bold text-success-600">{formatCurrency(summary?.today_total_charge || 0)}</p>
-          </div>
-          <div className="p-4 bg-primary-50 dark:bg-primary-900/20 rounded-card">
-            <p className="text-sm text-primary-700 dark:text-primary-400">오늘 사용 금액</p>
-            <p className="text-2xl font-bold text-primary-600">{formatCurrency(summary?.today_total_deduct || 0)}</p>
-          </div>
+      {/* 고객 리스트 */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-heading-3 text-gray-900 dark:text-white">
+            고객 목록
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+              ({total}명)
+            </span>
+          </h2>
         </div>
-      </Card>
 
-      {/* 빠른 안내 */}
-      <Card>
-        <h2 className="text-heading-3 text-gray-900 dark:text-white mb-4">빠른 시작</h2>
-        <div className="space-y-3 text-gray-600 dark:text-gray-400">
-          <p>👤 <strong>고객 관리</strong>: 새로운 고객을 등록하고 관리하세요</p>
-          <p>💰 <strong>충전</strong>: 고객의 선결제 금액을 충전하세요</p>
-          <p>☕ <strong>사용</strong>: 고객이 서비스를 이용하면 잔액에서 차감하세요</p>
-          <p>📊 <strong>통계</strong>: 매출 현황과 고객 분석을 확인하세요</p>
+        {customers.length === 0 ? (
+          <Card>
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <p>
+                {searchQuery ? '검색 결과가 없습니다.' : '등록된 고객이 없습니다.'}
+              </p>
+              {!searchQuery && (
+                <p className="text-sm mt-1">새로운 고객을 등록해주세요.</p>
+              )}
+            </div>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {customers.map((customer) => (
+              <Card key={customer.id} className="hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  {/* 고객 정보 */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                      <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
+                        {customer.name.charAt(0)}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">
+                        {customer.name}
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        ***-****-{customer.phone_suffix}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 잔액 및 액션 버튼 */}
+                  <div className="flex items-center gap-4">
+                    <div className="text-right mr-4">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">잔액</p>
+                      <p className={`text-xl font-bold ${
+                        customer.current_balance >= 0
+                          ? 'text-primary-600 dark:text-primary-400'
+                          : 'text-error-500'
+                      }`}>
+                        {formatCurrency(customer.current_balance)}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="success"
+                        size="sm"
+                        onClick={(e) => handleChargeClick(customer, e)}
+                        className="flex items-center gap-1"
+                      >
+                        <Plus className="w-4 h-4" />
+                        충전
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => handleDeductClick(customer, e)}
+                        className="flex items-center gap-1"
+                      >
+                        <Minus className="w-4 h-4" />
+                        결제
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* 페이지네이션 */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+            >
+              이전
+            </Button>
+            <span className="text-sm text-gray-600 dark:text-gray-400 px-4">
+              {page} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+            >
+              다음
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* 충전 모달 */}
+      {selectedCustomer && (
+        <>
+          <ChargeModal
+            isOpen={isChargeModalOpen}
+            onClose={() => {
+              setIsChargeModalOpen(false);
+              setSelectedCustomer(null);
+            }}
+            customerId={selectedCustomer.id}
+            customerName={selectedCustomer.name}
+            onSuccess={handleTransactionSuccess}
+          />
+          <DeductModal
+            isOpen={isDeductModalOpen}
+            onClose={() => {
+              setIsDeductModalOpen(false);
+              setSelectedCustomer(null);
+            }}
+            customerId={selectedCustomer.id}
+            customerName={selectedCustomer.name}
+            currentBalance={selectedCustomer.current_balance}
+            onSuccess={handleTransactionSuccess}
+          />
+        </>
+      )}
+
+      {/* 고객 추가 모달 */}
+      <Modal
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => {
+          setIsAddCustomerModalOpen(false);
+          setNewCustomerName('');
+          setNewCustomerPhone('');
+        }}
+        title="새 고객 등록"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <Input
+            label="고객 이름"
+            placeholder="홍길동"
+            value={newCustomerName}
+            onChange={(e) => setNewCustomerName(e.target.value)}
+          />
+          <Input
+            label="연락처 뒷자리 (4자리)"
+            placeholder="1234"
+            maxLength={4}
+            value={newCustomerPhone}
+            onChange={(e) => setNewCustomerPhone(e.target.value.replace(/\D/g, ''))}
+          />
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddCustomerModalOpen(false);
+                setNewCustomerName('');
+                setNewCustomerPhone('');
+              }}
+              className="flex-1"
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleAddCustomer}
+              isLoading={isAddingCustomer}
+              disabled={!newCustomerName.trim()}
+              className="flex-1"
+            >
+              등록하기
+            </Button>
+          </div>
         </div>
-      </Card>
+      </Modal>
     </div>
   );
 }
