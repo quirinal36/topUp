@@ -156,7 +156,7 @@ async def get_current_shop_info(
     db=Depends(get_db)
 ):
     """현재 로그인된 상점 정보 조회"""
-    result = db.table("shops").select("id, name, email, created_at").eq("id", shop_id).single().execute()
+    result = db.table("shops").select("id, name, email, created_at").eq("id", shop_id).maybe_single().execute()
     if not result.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
