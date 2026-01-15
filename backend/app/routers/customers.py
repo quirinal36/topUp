@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 import uuid
 
-from ..database import get_db
+from ..database import get_db, get_supabase_admin_client
 from ..routers.auth import get_current_shop
 from ..schemas.customer import (
     CustomerCreate,
@@ -75,7 +75,7 @@ async def create_customer(
             detail="이미 등록된 고객입니다"
         )
 
-    # 고객 생성
+    # 고객 생성 (RLS 우회를 위해 admin 클라이언트 사용)
     from datetime import datetime
     new_customer = {
         "id": str(uuid.uuid4()),
@@ -86,7 +86,8 @@ async def create_customer(
         "created_at": datetime.now().isoformat()
     }
 
-    result = db.table("customers").insert(new_customer).execute()
+    admin_db = get_supabase_admin_client()
+    admin_db.table("customers").insert(new_customer).execute()
 
     return CustomerResponse(
         id=new_customer["id"],
