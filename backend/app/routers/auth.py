@@ -162,4 +162,5 @@ async def get_current_shop_info(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="상점 정보를 찾을 수 없습니다"
         )
+        
     return result.data
