@@ -10,7 +10,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-from ..database import get_db
+from ..database import get_db, get_supabase_admin_client
 from ..services.auth_service import AuthService
 from ..services.pin_service import PinService
 from ..schemas.auth import (
@@ -152,11 +152,11 @@ async def reset_pin(
 
 @router.get("/me", response_model=ShopResponse)
 async def get_current_shop_info(
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """현재 로그인된 상점 정보 조회"""
-    result = db.table("shops").select("id, name, email, created_at").eq("id", shop_id).maybe_single().execute()
+    admin_db = get_supabase_admin_client()
+    result = admin_db.table("shops").select("id, name, email, created_at").eq("id", shop_id).maybe_single().execute()
     if not result.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
