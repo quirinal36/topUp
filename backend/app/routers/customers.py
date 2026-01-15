@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 import uuid
 
-from ..database import get_db, get_supabase_admin_client
+from ..database import get_supabase_admin_client
 from ..routers.auth import get_current_shop
 from ..schemas.customer import (
     CustomerCreate,
@@ -23,12 +23,14 @@ async def get_customers(
     query: Optional[str] = Query(None, description="이름 또는 연락처로 검색"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """고객 목록 조회 (검색 및 페이지네이션)"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    admin_db = get_supabase_admin_client()
+
     # 기본 쿼리
-    base_query = db.table("customers").select("*", count="exact").eq("shop_id", shop_id)
+    base_query = admin_db.table("customers").select("*", count="exact").eq("shop_id", shop_id)
 
     # 검색 조건
     if query:
@@ -101,12 +103,14 @@ async def create_customer(
 @router.get("/{customer_id}", response_model=CustomerDetail)
 async def get_customer(
     customer_id: str,
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """고객 상세 정보 조회"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    admin_db = get_supabase_admin_client()
+
     # 고객 정보
-    result = db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
+    result = admin_db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
 
     if not result.data:
         raise HTTPException(
@@ -117,7 +121,7 @@ async def get_customer(
     customer = result.data
 
     # 거래 통계
-    transactions = db.table("transactions").select("type, amount").eq("customer_id", customer_id).execute()
+    transactions = admin_db.table("transactions").select("type, amount").eq("customer_id", customer_id).execute()
 
     total_charged = sum(t["amount"] for t in transactions.data if t["type"] == "CHARGE")
     total_used = sum(t["amount"] for t in transactions.data if t["type"] == "DEDUCT")
@@ -138,12 +142,14 @@ async def get_customer(
 async def update_customer(
     customer_id: str,
     customer: CustomerUpdate,
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """고객 정보 수정 (PIN 검증 필요)"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    admin_db = get_supabase_admin_client()
+
     # 고객 존재 확인
-    existing = db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
+    existing = admin_db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
 
     if not existing.data:
         raise HTTPException(
@@ -159,7 +165,7 @@ async def update_customer(
             detail="수정할 내용이 없습니다"
         )
 
-    result = db.table("customers").update(update_data).eq("id", customer_id).execute()
+    result = admin_db.table("customers").update(update_data).eq("id", customer_id).execute()
 
     updated = {**existing.data, **update_data}
     return CustomerResponse(
@@ -174,12 +180,14 @@ async def update_customer(
 @router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_customer(
     customer_id: str,
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """고객 삭제 (PIN 검증 필요)"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    admin_db = get_supabase_admin_client()
+
     # 고객 존재 확인
-    existing = db.table("customers").select("id").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
+    existing = admin_db.table("customers").select("id").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
 
     if not existing.data:
         raise HTTPException(
@@ -188,11 +196,11 @@ async def delete_customer(
         )
 
     # 잔액 확인
-    balance_check = db.table("customers").select("current_balance").eq("id", customer_id).single().execute()
+    balance_check = admin_db.table("customers").select("current_balance").eq("id", customer_id).single().execute()
     if balance_check.data and balance_check.data["current_balance"] > 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="잔액이 있는 고객은 삭제할 수 없습니다"
         )
 
-    db.table("customers").delete().eq("id", customer_id).execute()
+    admin_db.table("customers").delete().eq("id", customer_id).execute()
