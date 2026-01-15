@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
+import { getCurrentShop } from './api/auth';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -11,9 +13,42 @@ import Settings from './pages/Settings';
 
 // 인증이 필요한 라우트 보호
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, token, logout } = useAuthStore();
+  const [isValidating, setIsValidating] = useState(true);
+  const [isValid, setIsValid] = useState(false);
 
-  if (!isAuthenticated) {
+  useEffect(() => {
+    const validateToken = async () => {
+      if (!isAuthenticated || !token) {
+        setIsValidating(false);
+        setIsValid(false);
+        return;
+      }
+
+      try {
+        await getCurrentShop();
+        setIsValid(true);
+      } catch {
+        // 토큰이 만료되었거나 유효하지 않음
+        logout();
+        setIsValid(false);
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateToken();
+  }, [isAuthenticated, token, logout]);
+
+  if (isValidating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-gray-500 dark:text-gray-400">로딩 중...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !isValid) {
     return <Navigate to="/login" replace />;
   }
 

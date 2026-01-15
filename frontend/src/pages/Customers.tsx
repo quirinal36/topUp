@@ -12,6 +12,7 @@ export default function Customers() {
   const [newPhone, setNewPhone] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const { createCustomer } = useCustomerStore();
 
@@ -29,7 +30,10 @@ export default function Customers() {
     setError('');
 
     try {
-      await createCustomer(newName.trim(), newPhone);
+      const customerName = newName.trim();
+      await createCustomer(customerName, newPhone);
+      setSuccessMessage(`${customerName} 고객 등록에 성공하였습니다.`);
+      setTimeout(() => setSuccessMessage(''), 3000);
       handleCloseModal();
     } catch (err: any) {
       setError(err.response?.data?.detail || '고객 등록에 실패했습니다');
@@ -48,6 +52,12 @@ export default function Customers() {
   return (
     <div className="space-y-6">
       <h1 className="text-heading-2 text-gray-900 dark:text-white">고객 관리</h1>
+
+      {successMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative dark:bg-green-900 dark:border-green-600 dark:text-green-200">
+          {successMessage}
+        </div>
+      )}
 
       <CustomerSearch onAddClick={() => setIsAddModalOpen(true)} />
       <CustomerList />
