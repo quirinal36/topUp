@@ -62,12 +62,14 @@ async def get_customers(
 @router.post("", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     customer: CustomerCreate,
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """신규 고객 등록"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    admin_db = get_supabase_admin_client()
+
     # 중복 확인 (같은 상점 내 동일 이름 + 연락처)
-    existing = db.table("customers").select("id").eq("shop_id", shop_id).eq(
+    existing = admin_db.table("customers").select("id").eq("shop_id", shop_id).eq(
         "name", customer.name
     ).eq("phone_suffix", customer.phone_suffix).execute()
 
