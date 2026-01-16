@@ -4,13 +4,10 @@ PIN 검증, 잠금, 해시 처리 등을 담당
 """
 from datetime import datetime, timedelta
 from typing import Tuple, Optional
-from passlib.context import CryptContext
+import bcrypt
 from supabase import Client
 
 from ..database import get_supabase_admin_client
-
-# PIN 해시 설정
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # PIN 정책 상수
 MAX_FAILED_ATTEMPTS = 5
@@ -28,7 +25,7 @@ class PinService:
     @staticmethod
     def hash_pin(pin: str) -> str:
         """PIN 해시 생성"""
-        return pwd_context.hash(pin)
+        return bcrypt.hashpw(pin.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
     @staticmethod
     def verify_pin_hash(plain_pin: str, hashed_pin: str) -> bool:
@@ -36,7 +33,7 @@ class PinService:
         if not hashed_pin:
             return False
         try:
-            return pwd_context.verify(plain_pin, hashed_pin)
+            return bcrypt.checkpw(plain_pin.encode('utf-8'), hashed_pin.encode('utf-8'))
         except Exception:
             return False
 
