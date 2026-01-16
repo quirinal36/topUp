@@ -25,6 +25,20 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     cors_origins: str = "http://localhost:5173,http://localhost:5173"
 
+    # 토스페이먼츠 설정
+    toss_client_key: str = ""
+    toss_secret_key: str = ""
+
+    # 구독 설정
+    subscription_monthly_price: int = 9900
+    subscription_trial_days: int = 14
+    subscription_grace_days: int = 7
+
+    # Solapi 설정 (알림톡/문자)
+    solapi_api_key: str = ""
+    solapi_api_secret: str = ""
+    solapi_sender_phone: str = ""
+
     @property
     def cors_origins_list(self) -> List[str]:
         """CORS 허용 도메인 리스트 반환"""

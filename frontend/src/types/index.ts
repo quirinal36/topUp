@@ -98,3 +98,38 @@ export interface TransactionListResponse {
   total_charge: number;
   total_deduct: number;
 }
+
+// 구독 타입
+export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'GRACE' | 'SUSPENDED' | 'CANCELLED';
+
+export interface Subscription {
+  shop_id: string;
+  status: SubscriptionStatus;
+  trial_start_date?: string;
+  trial_end_date?: string;
+  current_period_start?: string;
+  current_period_end?: string;
+  grace_period_end?: string;
+  cancelled_at?: string;
+  has_billing_key: boolean;
+  days_remaining?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentHistory {
+  id: string;
+  shop_id: string;
+  amount: number;
+  status: 'SUCCESS' | 'FAILED' | 'PENDING' | 'REFUNDED';
+  payment_key?: string;
+  order_id: string;
+  failure_reason?: string;
+  created_at: string;
+}
+
+export interface SubscriptionConfig {
+  monthly_price: number;
+  trial_days: number;
+  grace_period_days: number;
+}

@@ -7,6 +7,7 @@ import uuid
 
 from ..database import get_supabase_admin_client
 from ..routers.auth import get_current_shop
+from ..middleware.subscription_check import require_active_subscription
 from ..schemas.customer import (
     CustomerCreate,
     CustomerUpdate,
@@ -62,7 +63,7 @@ async def get_customers(
 @router.post("", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
 async def create_customer(
     customer: CustomerCreate,
-    shop_id: str = Depends(get_current_shop)
+    shop_id: str = Depends(require_active_subscription)
 ):
     """신규 고객 등록"""
     # RLS 우회를 위해 admin 클라이언트 사용
@@ -144,7 +145,7 @@ async def get_customer(
 async def update_customer(
     customer_id: str,
     customer: CustomerUpdate,
-    shop_id: str = Depends(get_current_shop)
+    shop_id: str = Depends(require_active_subscription)
 ):
     """고객 정보 수정 (PIN 검증 필요)"""
     # RLS 우회를 위해 admin 클라이언트 사용
@@ -182,7 +183,7 @@ async def update_customer(
 @router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_customer(
     customer_id: str,
-    shop_id: str = Depends(get_current_shop)
+    shop_id: str = Depends(require_active_subscription)
 ):
     """고객 삭제 (PIN 검증 필요)"""
     # RLS 우회를 위해 admin 클라이언트 사용

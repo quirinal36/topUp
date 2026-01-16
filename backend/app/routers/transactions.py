@@ -9,6 +9,7 @@ import uuid
 
 from ..database import get_supabase_admin_client
 from ..routers.auth import get_current_shop
+from ..middleware.subscription_check import require_active_subscription
 from ..models.transaction import TransactionType
 from ..schemas.transaction import (
     ChargeRequest,
@@ -125,7 +126,7 @@ async def get_transactions(
 @router.post("/charge", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 async def charge(
     request: ChargeRequest,
-    shop_id: str = Depends(get_current_shop)
+    shop_id: str = Depends(require_active_subscription)
 ):
     """선불 충전"""
     # RLS 우회를 위해 admin 클라이언트 사용
@@ -179,7 +180,7 @@ async def charge(
 @router.post("/deduct", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 async def deduct(
     request: DeductRequest,
-    shop_id: str = Depends(get_current_shop)
+    shop_id: str = Depends(require_active_subscription)
 ):
     """서비스 이용 (차감)"""
     # RLS 우회를 위해 admin 클라이언트 사용
@@ -234,7 +235,7 @@ async def deduct(
 @router.post("/cancel", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 async def cancel(
     request: CancelRequest,
-    shop_id: str = Depends(get_current_shop)
+    shop_id: str = Depends(require_active_subscription)
 ):
     """거래 취소 (PIN 검증 필요)"""
     # RLS 우회를 위해 admin 클라이언트 사용

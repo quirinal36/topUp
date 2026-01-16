@@ -1,16 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Moon, Sun, Key, Link2, Store, Edit2 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Modal from '../components/common/Modal';
+import SubscriptionCard from '../components/subscription/SubscriptionCard';
 import { useAuthStore } from '../stores/authStore';
 import { changePin, updateShop } from '../api/auth';
 import { useToast } from '../contexts/ToastContext';
 
 export default function Settings() {
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { darkMode, toggleDarkMode, shopName, setShopName } = useAuthStore();
+
+  // 빌링키 등록 콜백 처리
+  useEffect(() => {
+    const billingStatus = searchParams.get('billing');
+    if (billingStatus === 'success') {
+      toast.success('결제 수단이 등록되었습니다');
+      setSearchParams({});
+    } else if (billingStatus === 'fail') {
+      toast.error('결제 수단 등록에 실패했습니다');
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams, toast]);
 
   // 상점명 수정 상태
   const [isShopNameModalOpen, setIsShopNameModalOpen] = useState(false);
@@ -102,6 +117,9 @@ export default function Settings() {
   return (
     <div className="space-y-6">
       <h1 className="text-heading-2 text-gray-900 dark:text-white">설정</h1>
+
+      {/* 구독 관리 */}
+      <SubscriptionCard />
 
       {/* 상점 정보 */}
       <Card>

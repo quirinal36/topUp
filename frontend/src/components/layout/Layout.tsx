@@ -1,6 +1,7 @@
 import { useState, ReactNode } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import SubscriptionBanner from '../subscription/SubscriptionBanner';
 
 interface LayoutProps {
   children: ReactNode;
@@ -17,6 +18,7 @@ export default function Layout({ children }: LayoutProps) {
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <main className="flex-1 p-4 lg:p-6">
+          <SubscriptionBanner />
           {children}
         </main>
       </div>
