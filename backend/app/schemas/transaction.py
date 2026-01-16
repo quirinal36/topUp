@@ -41,12 +41,19 @@ class TransactionResponse(BaseModel):
     created_at: str
 
 
+class TransactionWithCustomer(TransactionResponse):
+    """거래 응답 (고객 정보 포함)"""
+    customer_name: Optional[str] = None
+
+
 class TransactionListResponse(BaseModel):
     """거래 목록 응답"""
-    transactions: List[TransactionResponse]
+    transactions: List[TransactionWithCustomer]
     total: int
     page: int
     page_size: int
+    total_charge: int = Field(default=0, description="필터 조건 충전 합계")
+    total_deduct: int = Field(default=0, description="필터 조건 차감 합계")
 
 
 class DashboardSummary(BaseModel):

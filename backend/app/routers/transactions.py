@@ -4,7 +4,7 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import uuid
 
 from ..database import get_supabase_admin_client
@@ -15,6 +15,7 @@ from ..schemas.transaction import (
     DeductRequest,
     CancelRequest,
     TransactionResponse,
+    TransactionWithCustomer,
     TransactionListResponse
 )
 
@@ -25,6 +26,9 @@ router = APIRouter(prefix="/api/transactions", tags=["거래 관리"])
 async def get_transactions(
     customer_id: Optional[str] = Query(None, description="고객 ID로 필터링"),
     type: Optional[TransactionType] = Query(None, description="거래 유형으로 필터링"),
+    start_date: Optional[date] = Query(None, description="시작일 (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="종료일 (YYYY-MM-DD)"),
+    search: Optional[str] = Query(None, description="고객 이름 검색"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     shop_id: str = Depends(get_current_shop)
@@ -33,14 +37,24 @@ async def get_transactions(
     # RLS 우회를 위해 admin 클라이언트 사용
     db = get_supabase_admin_client()
 
-    # 해당 상점의 고객 ID 목록 조회
-    customers = db.table("customers").select("id").eq("shop_id", shop_id).execute()
-    customer_ids = [c["id"] for c in customers.data]
+    # 해당 상점의 고객 조회 (이름 포함)
+    customers_query = db.table("customers").select("id, name").eq("shop_id", shop_id)
+
+    # 고객 이름 검색
+    if search:
+        customers_query = customers_query.ilike("name", f"%{search}%")
+
+    customers_result = customers_query.execute()
+    customer_map = {c["id"]: c["name"] for c in customers_result.data}
+    customer_ids = list(customer_map.keys())
 
     if not customer_ids:
-        return TransactionListResponse(transactions=[], total=0, page=page, page_size=page_size)
+        return TransactionListResponse(
+            transactions=[], total=0, page=page, page_size=page_size,
+            total_charge=0, total_deduct=0
+        )
 
-    # 거래 조회
+    # 거래 조회 쿼리 구성
     base_query = db.table("transactions").select("*", count="exact").in_("customer_id", customer_ids)
 
     if customer_id:
@@ -54,13 +68,39 @@ async def get_transactions(
     if type:
         base_query = base_query.eq("type", type.value)
 
+    # 날짜 필터링
+    if start_date:
+        start_datetime = datetime.combine(start_date, datetime.min.time()).isoformat()
+        base_query = base_query.gte("created_at", start_datetime)
+
+    if end_date:
+        end_datetime = datetime.combine(end_date + timedelta(days=1), datetime.min.time()).isoformat()
+        base_query = base_query.lt("created_at", end_datetime)
+
+    # 페이지네이션 적용하여 거래 조회
     offset = (page - 1) * page_size
     result = base_query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
 
+    # 합계 계산을 위한 별도 쿼리 (필터 조건은 동일, 페이지네이션 제외)
+    sum_query = db.table("transactions").select("type, amount").in_("customer_id", customer_ids)
+
+    if customer_id:
+        sum_query = sum_query.eq("customer_id", customer_id)
+    if start_date:
+        sum_query = sum_query.gte("created_at", start_datetime)
+    if end_date:
+        sum_query = sum_query.lt("created_at", end_datetime)
+
+    sum_result = sum_query.execute()
+
+    total_charge = sum(t["amount"] for t in sum_result.data if t["type"] == "CHARGE")
+    total_deduct = sum(t["amount"] for t in sum_result.data if t["type"] == "DEDUCT")
+
     transactions = [
-        TransactionResponse(
+        TransactionWithCustomer(
             id=t["id"],
             customer_id=t["customer_id"],
+            customer_name=customer_map.get(t["customer_id"]),
             type=t["type"],
             amount=t["amount"],
             actual_payment=t.get("actual_payment"),
@@ -76,7 +116,9 @@ async def get_transactions(
         transactions=transactions,
         total=result.count or 0,
         page=page,
-        page_size=page_size
+        page_size=page_size,
+        total_charge=total_charge,
+        total_deduct=total_deduct
     )
 
 

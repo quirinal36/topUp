@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
+import Transactions from './pages/Transactions';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 
@@ -129,6 +130,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CustomerDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/transactions"
+          element={
+            <ProtectedRoute>
+              <Transactions />
             </ProtectedRoute>
           }
         />

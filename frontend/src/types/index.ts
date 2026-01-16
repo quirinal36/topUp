@@ -27,6 +27,7 @@ export interface Transaction {
   payment_method?: PaymentMethod;
   note?: string;
   created_at: string;
+  customer_name?: string;
 }
 
 // 인증 타입
@@ -94,4 +95,6 @@ export interface TransactionListResponse {
   total: number;
   page: number;
   page_size: number;
+  total_charge: number;
+  total_deduct: number;
 }

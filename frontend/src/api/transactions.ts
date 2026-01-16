@@ -5,6 +5,9 @@ import { Transaction, TransactionListResponse, PaymentMethod } from '../types';
 export const getTransactions = async (params: {
   customer_id?: string;
   type?: string;
+  start_date?: string;
+  end_date?: string;
+  search?: string;
   page?: number;
   page_size?: number;
 }): Promise<TransactionListResponse> => {
