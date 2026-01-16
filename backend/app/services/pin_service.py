@@ -42,7 +42,7 @@ class PinService:
         """
         # 상점 정보 조회
         result = self.admin_db.table("shops").select("*").eq("id", shop_id).maybe_single().execute()
-        shop = result.data
+        shop = result.data if result else None
 
         if not shop:
             return False, None, None

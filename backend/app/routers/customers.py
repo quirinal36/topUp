@@ -114,7 +114,7 @@ async def get_customer(
     # 고객 정보
     result = admin_db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
-    if not result.data:
+    if not result or not result.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="고객을 찾을 수 없습니다"
@@ -153,7 +153,7 @@ async def update_customer(
     # 고객 존재 확인
     existing = admin_db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="고객을 찾을 수 없습니다"
@@ -191,7 +191,7 @@ async def delete_customer(
     # 고객 존재 확인
     existing = admin_db.table("customers").select("id, current_balance").eq("id", customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
-    if not existing.data:
+    if not existing or not existing.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="고객을 찾을 수 없습니다"

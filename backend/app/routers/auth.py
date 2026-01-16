@@ -157,7 +157,7 @@ async def get_current_shop_info(
     """현재 로그인된 상점 정보 조회"""
     admin_db = get_supabase_admin_client()
     result = admin_db.table("shops").select("id, name, email, created_at").eq("id", shop_id).maybe_single().execute()
-    if not result.data:
+    if not result or not result.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="상점 정보를 찾을 수 없습니다"

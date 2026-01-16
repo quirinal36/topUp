@@ -92,7 +92,7 @@ async def charge(
     # 고객 확인
     customer = db.table("customers").select("*").eq("id", request.customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
-    if not customer.data:
+    if not customer or not customer.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="고객을 찾을 수 없습니다"
@@ -146,7 +146,7 @@ async def deduct(
     # 고객 확인
     customer = db.table("customers").select("*").eq("id", request.customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
-    if not customer.data:
+    if not customer or not customer.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="고객을 찾을 수 없습니다"
@@ -201,7 +201,7 @@ async def cancel(
     # 원본 거래 조회
     original = db.table("transactions").select("*").eq("id", request.transaction_id).maybe_single().execute()
 
-    if not original.data:
+    if not original or not original.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="거래를 찾을 수 없습니다"
@@ -217,7 +217,7 @@ async def cancel(
     # 고객 및 상점 확인
     customer = db.table("customers").select("*").eq("id", original.data["customer_id"]).eq("shop_id", shop_id).maybe_single().execute()
 
-    if not customer.data:
+    if not customer or not customer.data:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="해당 거래에 대한 접근 권한이 없습니다"
