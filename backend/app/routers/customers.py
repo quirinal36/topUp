@@ -21,6 +21,8 @@ router = APIRouter(prefix="/api/customers", tags=["고객 관리"])
 @router.get("", response_model=CustomerListResponse)
 async def get_customers(
     query: Optional[str] = Query(None, description="이름 또는 연락처로 검색"),
+    sort_by: str = Query("name", description="정렬 기준 (name, created_at, current_balance)"),
+    sort_order: str = Query("asc", description="정렬 순서 (asc, desc)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     shop_id: str = Depends(get_current_shop)
@@ -33,12 +35,19 @@ async def get_customers(
     base_query = admin_db.table("customers").select("*", count="exact").eq("shop_id", shop_id)
 
     # 검색 조건
-    if query:
-        base_query = base_query.or_(f"name.ilike.%{query}%,phone_suffix.ilike.%{query}%")
+    if query and query.strip():
+        safe_query = query.strip()
+        base_query = base_query.or_(f"name.ilike.%{safe_query}%,phone_suffix.ilike.%{safe_query}%")
+
+    # 정렬
+    valid_sort_fields = ["name", "created_at", "current_balance"]
+    if sort_by not in valid_sort_fields:
+        sort_by = "name"
+    is_desc = sort_order.lower() == "desc"
 
     # 페이지네이션
     offset = (page - 1) * page_size
-    result = base_query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
+    result = base_query.order(sort_by, desc=is_desc).range(offset, offset + page_size - 1).execute()
 
     customers = [
         CustomerResponse(

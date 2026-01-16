@@ -9,6 +9,8 @@ interface CustomerState {
   page: number;
   pageSize: number;
   searchQuery: string;
+  sortBy: string;
+  sortOrder: string;
   isLoading: boolean;
   error: string | null;
 
@@ -19,6 +21,8 @@ interface CustomerState {
   updateCustomer: (id: string, data: { name?: string; phone_suffix?: string }) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
   setSearchQuery: (query: string) => void;
+  setSortBy: (sortBy: string) => void;
+  setSortOrder: (sortOrder: string) => void;
   clearSelectedCustomer: () => void;
 }
 
@@ -29,6 +33,8 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
   page: 1,
   pageSize: 20,
   searchQuery: '',
+  sortBy: 'name',
+  sortOrder: 'asc',
   isLoading: false,
   error: null,
 
@@ -36,7 +42,9 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await customerApi.getCustomers({
-        query: query ?? get().searchQuery,
+        query: query !== undefined ? query : get().searchQuery,
+        sort_by: get().sortBy,
+        sort_order: get().sortOrder,
         page: page ?? get().page,
         page_size: get().pageSize,
       });
@@ -88,6 +96,14 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
 
   setSearchQuery: (query: string) => {
     set({ searchQuery: query, page: 1 });
+  },
+
+  setSortBy: (sortBy: string) => {
+    set({ sortBy, page: 1 });
+  },
+
+  setSortOrder: (sortOrder: string) => {
+    set({ sortOrder, page: 1 });
   },
 
   clearSelectedCustomer: () => {

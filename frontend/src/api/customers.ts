@@ -4,6 +4,8 @@ import { Customer, CustomerDetail, CustomerListResponse } from '../types';
 // 고객 목록 조회
 export const getCustomers = async (params: {
   query?: string;
+  sort_by?: string;
+  sort_order?: string;
   page?: number;
   page_size?: number;
 }): Promise<CustomerListResponse> => {
