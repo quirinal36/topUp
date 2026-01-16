@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { getCurrentShop } from './api/auth';
@@ -11,6 +11,42 @@ import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+
+// 활동 추적 및 PIN 타임아웃 체크 훅
+function useActivityTracker() {
+  const { updateActivity, checkPinTimeout, isAuthenticated, pinVerified } = useAuthStore();
+
+  const handleActivity = useCallback(() => {
+    if (isAuthenticated && pinVerified) {
+      updateActivity();
+    }
+  }, [isAuthenticated, pinVerified, updateActivity]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // 페이지 로드 시 PIN 타임아웃 체크
+    checkPinTimeout();
+
+    // 주기적으로 PIN 타임아웃 체크 (1분마다)
+    const intervalId = setInterval(() => {
+      checkPinTimeout();
+    }, 60 * 1000);
+
+    // 사용자 활동 이벤트 리스너
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((event) => {
+      window.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    return () => {
+      clearInterval(intervalId);
+      events.forEach((event) => {
+        window.removeEventListener(event, handleActivity);
+      });
+    };
+  }, [isAuthenticated, handleActivity, checkPinTimeout]);
+}
 
 // 인증이 필요한 라우트 보호
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -56,10 +92,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
+function ActivityTrackerWrapper({ children }: { children: React.ReactNode }) {
+  useActivityTracker();
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
+        <ActivityTrackerWrapper>
         <Routes>
         {/* 공개 라우트 */}
         <Route path="/login" element={<Login />} />
@@ -110,6 +152,7 @@ function App() {
         {/* 404 */}
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ActivityTrackerWrapper>
       </BrowserRouter>
     </ToastProvider>
   );

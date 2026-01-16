@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getCurrentShop } from '../api/auth';
 
+// 30분 (밀리초)
+const PIN_TIMEOUT_MS = 30 * 60 * 1000;
+
 interface AuthState {
   isAuthenticated: boolean;
   shopId: string | null;
@@ -9,6 +12,7 @@ interface AuthState {
   token: string | null;
   pinVerified: boolean;
   darkMode: boolean;
+  lastActivityTime: number | null;
 
   // Actions
   login: (token: string) => Promise<void>;
@@ -17,6 +21,8 @@ interface AuthState {
   resetPinVerification: () => void;
   toggleDarkMode: () => void;
   setShopName: (name: string) => void;
+  updateActivity: () => void;
+  checkPinTimeout: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -28,6 +34,7 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       pinVerified: false,
       darkMode: false,
+      lastActivityTime: null,
 
       login: async (token: string) => {
         localStorage.setItem('access_token', token);
@@ -58,11 +65,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       verifyPin: () => {
-        set({ pinVerified: true });
+        set({ pinVerified: true, lastActivityTime: Date.now() });
       },
 
       resetPinVerification: () => {
-        set({ pinVerified: false });
+        set({ pinVerified: false, lastActivityTime: null });
       },
 
       toggleDarkMode: () => {
@@ -78,6 +85,27 @@ export const useAuthStore = create<AuthState>()(
       setShopName: (name: string) => {
         set({ shopName: name });
       },
+
+      updateActivity: () => {
+        const { pinVerified } = get();
+        if (pinVerified) {
+          set({ lastActivityTime: Date.now() });
+        }
+      },
+
+      checkPinTimeout: () => {
+        const { pinVerified, lastActivityTime } = get();
+        if (!pinVerified) return false;
+
+        if (lastActivityTime) {
+          const elapsed = Date.now() - lastActivityTime;
+          if (elapsed > PIN_TIMEOUT_MS) {
+            set({ pinVerified: false, lastActivityTime: null });
+            return true; // PIN이 타임아웃되었음
+          }
+        }
+        return false;
+      },
     }),
     {
       name: 'auth-storage',
@@ -87,6 +115,7 @@ export const useAuthStore = create<AuthState>()(
         shopName: state.shopName,
         token: state.token,
         darkMode: state.darkMode,
+        lastActivityTime: state.lastActivityTime,
       }),
     }
   )
