@@ -52,6 +52,9 @@ async def health_check():
 
 
 # 라우터 등록 시도
+_router_error = None
+_router_loaded = False
+
 try:
     from app.config import get_settings
     from app.routers import auth_router, customers_router, transactions_router, dashboard_router
@@ -71,5 +74,19 @@ try:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    _router_loaded = True
 except Exception as e:
+    _router_error = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
     print(f"Warning: Could not load routers: {e}")
+
+
+@app.get("/api/debug")
+async def debug_info():
+    """디버그 정보 - 라우터 로딩 상태 확인"""
+    return {
+        "router_loaded": _router_loaded,
+        "router_error": _router_error,
+        "sys_path": sys.path[:5],
+        "cwd": os.getcwd(),
+        "file_dir": os.path.dirname(__file__),
+    }
