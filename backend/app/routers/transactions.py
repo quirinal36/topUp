@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import datetime
 import uuid
 
-from ..database import get_db
+from ..database import get_supabase_admin_client
 from ..routers.auth import get_current_shop
 from ..models.transaction import TransactionType
 from ..schemas.transaction import (
@@ -27,10 +27,12 @@ async def get_transactions(
     type: Optional[TransactionType] = Query(None, description="거래 유형으로 필터링"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """거래 내역 조회"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     # 해당 상점의 고객 ID 목록 조회
     customers = db.table("customers").select("id").eq("shop_id", shop_id).execute()
     customer_ids = [c["id"] for c in customers.data]
@@ -81,24 +83,19 @@ async def get_transactions(
 @router.post("/charge", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 async def charge(
     request: ChargeRequest,
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """선불 충전"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     # 고객 확인
-    customer = db.table("customers").select("*").eq("id", request.customer_id).single().execute()
+    customer = db.table("customers").select("*").eq("id", request.customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
     if not customer.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="고객을 찾을 수 없습니다"
-        )
-
-    # 상점 소속 확인
-    if customer.data.get("shop_id") != shop_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 고객에 대한 접근 권한이 없습니다"
         )
 
     # 충전 금액 계산
@@ -140,24 +137,19 @@ async def charge(
 @router.post("/deduct", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 async def deduct(
     request: DeductRequest,
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """서비스 이용 (차감)"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     # 고객 확인
-    customer = db.table("customers").select("*").eq("id", request.customer_id).single().execute()
+    customer = db.table("customers").select("*").eq("id", request.customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
     if not customer.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="고객을 찾을 수 없습니다"
-        )
-
-    # 상점 소속 확인
-    if customer.data.get("shop_id") != shop_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 고객에 대한 접근 권한이 없습니다"
         )
 
     # 잔액 확인
@@ -200,12 +192,14 @@ async def deduct(
 @router.post("/cancel", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 async def cancel(
     request: CancelRequest,
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """거래 취소 (PIN 검증 필요)"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     # 원본 거래 조회
-    original = db.table("transactions").select("*").eq("id", request.transaction_id).single().execute()
+    original = db.table("transactions").select("*").eq("id", request.transaction_id).maybe_single().execute()
 
     if not original.data:
         raise HTTPException(
@@ -221,9 +215,9 @@ async def cancel(
         )
 
     # 고객 및 상점 확인
-    customer = db.table("customers").select("*").eq("id", original.data["customer_id"]).single().execute()
+    customer = db.table("customers").select("*").eq("id", original.data["customer_id"]).eq("shop_id", shop_id).maybe_single().execute()
 
-    if not customer.data or customer.data.get("shop_id") != shop_id:
+    if not customer.data:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="해당 거래에 대한 접근 권한이 없습니다"
