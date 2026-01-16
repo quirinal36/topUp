@@ -49,3 +49,14 @@ export const getCurrentShop = async (): Promise<{
   const response = await apiClient.get('/auth/me');
   return response.data;
 };
+
+// 상점 정보 수정
+export const updateShop = async (name: string): Promise<{
+  id: string;
+  name: string;
+  email?: string;
+  created_at: string;
+}> => {
+  const response = await apiClient.put('/auth/me', { name });
+  return response.data;
+};

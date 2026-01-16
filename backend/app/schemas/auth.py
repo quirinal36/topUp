@@ -76,3 +76,8 @@ class PinChangeRequest(BaseModel):
     """PIN 변경 요청"""
     current_pin: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$")
     new_pin: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$")
+
+
+class ShopUpdateRequest(BaseModel):
+    """상점 정보 수정 요청"""
+    name: str = Field(..., min_length=1, max_length=100, description="상점명")

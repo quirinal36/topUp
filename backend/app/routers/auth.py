@@ -21,6 +21,7 @@ from ..schemas.auth import (
     PinVerifyRequest,
     PinVerifyResponse,
     PinChangeRequest,
+    ShopUpdateRequest,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["인증"])
@@ -162,5 +163,30 @@ async def get_current_shop_info(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="상점 정보를 찾을 수 없습니다"
         )
-        
+
+    return result.data
+
+
+@router.put("/me", response_model=ShopResponse)
+async def update_current_shop_info(
+    request: ShopUpdateRequest,
+    shop_id: str = Depends(get_current_shop)
+):
+    """현재 로그인된 상점 정보 수정"""
+    admin_db = get_supabase_admin_client()
+
+    from datetime import datetime
+    admin_db.table("shops").update({
+        "name": request.name,
+        "updated_at": datetime.now().isoformat()
+    }).eq("id", shop_id).execute()
+
+    # 업데이트된 정보 반환
+    result = admin_db.table("shops").select("id, name, email, created_at").eq("id", shop_id).maybe_single().execute()
+    if not result or not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="상점 정보를 찾을 수 없습니다"
+        )
+
     return result.data

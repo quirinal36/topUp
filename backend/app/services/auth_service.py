@@ -105,13 +105,15 @@ class AuthService:
         # 상점 생성
         shop_id = str(uuid.uuid4())
         password_hash = self.hash_password(password)
+        # 기본 PIN은 0000으로 설정
+        default_pin_hash = self.pin_service.hash_pin("0000")
 
         self.admin_db.table("shops").insert({
             "id": shop_id,
             "email": email.lower(),
             "password_hash": password_hash,
             "name": shop_name,
-            "pin_hash": "",  # 최초 설정 필요
+            "pin_hash": default_pin_hash,  # 기본 PIN: 0000
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat()
         }).execute()

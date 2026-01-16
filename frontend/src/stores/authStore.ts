@@ -16,6 +16,7 @@ interface AuthState {
   verifyPin: () => void;
   resetPinVerification: () => void;
   toggleDarkMode: () => void;
+  setShopName: (name: string) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -72,6 +73,10 @@ export const useAuthStore = create<AuthState>()(
         } else {
           document.documentElement.classList.remove('dark');
         }
+      },
+
+      setShopName: (name: string) => {
+        set({ shopName: name });
       },
     }),
     {

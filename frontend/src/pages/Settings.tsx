@@ -1,16 +1,24 @@
 import { useState } from 'react';
-import { Moon, Sun, Key, Link2 } from 'lucide-react';
+import { Moon, Sun, Key, Link2, Store, Edit2 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Modal from '../components/common/Modal';
 import { useAuthStore } from '../stores/authStore';
-import { changePin } from '../api/auth';
+import { changePin, updateShop } from '../api/auth';
 import { useToast } from '../contexts/ToastContext';
 
 export default function Settings() {
   const toast = useToast();
-  const { darkMode, toggleDarkMode, shopName } = useAuthStore();
+  const { darkMode, toggleDarkMode, shopName, setShopName } = useAuthStore();
+
+  // 상점명 수정 상태
+  const [isShopNameModalOpen, setIsShopNameModalOpen] = useState(false);
+  const [newShopName, setNewShopName] = useState('');
+  const [shopNameError, setShopNameError] = useState('');
+  const [isShopNameSubmitting, setIsShopNameSubmitting] = useState(false);
+
+  // PIN 변경 상태
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -56,6 +64,41 @@ export default function Settings() {
     setPinError('');
   };
 
+  const handleOpenShopNameModal = () => {
+    setNewShopName(shopName || '');
+    setShopNameError('');
+    setIsShopNameModalOpen(true);
+  };
+
+  const handleCloseShopNameModal = () => {
+    setIsShopNameModalOpen(false);
+    setNewShopName('');
+    setShopNameError('');
+  };
+
+  const handleShopNameChange = async () => {
+    if (!newShopName.trim()) {
+      setShopNameError('상점명을 입력해주세요');
+      return;
+    }
+
+    setIsShopNameSubmitting(true);
+    setShopNameError('');
+
+    try {
+      const result = await updateShop(newShopName.trim());
+      setShopName(result.name);
+      toast.success('상점명이 변경되었습니다');
+      handleCloseShopNameModal();
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.detail || '상점명 변경에 실패했습니다';
+      toast.error(errorMsg);
+      setShopNameError(errorMsg);
+    } finally {
+      setIsShopNameSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-heading-2 text-gray-900 dark:text-white">설정</h1>
@@ -65,8 +108,17 @@ export default function Settings() {
         <h2 className="text-heading-3 text-gray-900 dark:text-white mb-4">상점 정보</h2>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-gray-600 dark:text-gray-400">상점명</span>
-            <span className="font-medium text-gray-900 dark:text-white">{shopName || '내 카페'}</span>
+            <div className="flex items-center gap-3">
+              <Store className="w-5 h-5 text-primary-500" />
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">{shopName || '내 카페'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">상점명</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleOpenShopNameModal}>
+              <Edit2 className="w-4 h-4 mr-1" />
+              수정
+            </Button>
           </div>
         </div>
       </Card>
@@ -180,6 +232,30 @@ export default function Settings() {
             </Button>
             <Button onClick={handlePinChange} isLoading={isSubmitting} className="flex-1">
               변경하기
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 상점명 수정 모달 */}
+      <Modal isOpen={isShopNameModalOpen} onClose={handleCloseShopNameModal} title="상점명 수정">
+        <div className="space-y-4">
+          <Input
+            label="상점명"
+            placeholder="내 카페"
+            value={newShopName}
+            onChange={(e) => setNewShopName(e.target.value)}
+            maxLength={100}
+          />
+
+          {shopNameError && <p className="text-error-500 text-sm">{shopNameError}</p>}
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" onClick={handleCloseShopNameModal} className="flex-1">
+              취소
+            </Button>
+            <Button onClick={handleShopNameChange} isLoading={isShopNameSubmitting} className="flex-1">
+              저장
             </Button>
           </div>
         </div>
