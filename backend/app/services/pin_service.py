@@ -33,7 +33,12 @@ class PinService:
     @staticmethod
     def verify_pin_hash(plain_pin: str, hashed_pin: str) -> bool:
         """PIN 해시 검증"""
-        return pwd_context.verify(plain_pin, hashed_pin)
+        if not hashed_pin:
+            return False
+        try:
+            return pwd_context.verify(plain_pin, hashed_pin)
+        except Exception:
+            return False
 
     async def verify_pin(self, shop_id: str, pin: str) -> Tuple[bool, Optional[int], Optional[datetime]]:
         """
