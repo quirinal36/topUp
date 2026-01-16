@@ -112,7 +112,7 @@ async def get_customer(
     admin_db = get_supabase_admin_client()
 
     # 고객 정보
-    result = admin_db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
+    result = admin_db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
     if not result.data:
         raise HTTPException(
@@ -151,7 +151,7 @@ async def update_customer(
     admin_db = get_supabase_admin_client()
 
     # 고객 존재 확인
-    existing = admin_db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
+    existing = admin_db.table("customers").select("*").eq("id", customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
     if not existing.data:
         raise HTTPException(
@@ -189,7 +189,7 @@ async def delete_customer(
     admin_db = get_supabase_admin_client()
 
     # 고객 존재 확인
-    existing = admin_db.table("customers").select("id").eq("id", customer_id).eq("shop_id", shop_id).single().execute()
+    existing = admin_db.table("customers").select("id, current_balance").eq("id", customer_id).eq("shop_id", shop_id).maybe_single().execute()
 
     if not existing.data:
         raise HTTPException(
@@ -198,8 +198,7 @@ async def delete_customer(
         )
 
     # 잔액 확인
-    balance_check = admin_db.table("customers").select("current_balance").eq("id", customer_id).single().execute()
-    if balance_check.data and balance_check.data["current_balance"] > 0:
+    if existing.data["current_balance"] > 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="잔액이 있는 고객은 삭제할 수 없습니다"

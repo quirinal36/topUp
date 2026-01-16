@@ -7,6 +7,8 @@ from typing import Tuple, Optional
 from passlib.context import CryptContext
 from supabase import Client
 
+from ..database import get_supabase_admin_client
+
 # PIN 해시 설정
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -20,6 +22,8 @@ class PinService:
 
     def __init__(self, db: Client):
         self.db = db
+        # RLS 우회를 위해 admin 클라이언트 사용
+        self.admin_db = get_supabase_admin_client()
 
     @staticmethod
     def hash_pin(pin: str) -> str:
@@ -37,7 +41,7 @@ class PinService:
         Returns: (verified, remaining_attempts, locked_until)
         """
         # 상점 정보 조회
-        result = self.db.table("shops").select("*").eq("id", shop_id).single().execute()
+        result = self.admin_db.table("shops").select("*").eq("id", shop_id).maybe_single().execute()
         shop = result.data
 
         if not shop:
@@ -50,7 +54,7 @@ class PinService:
                 return False, 0, locked_until
 
             # 잠금 해제
-            self.db.table("shops").update({
+            self.admin_db.table("shops").update({
                 "pin_failed_count": 0,
                 "pin_locked_until": None
             }).eq("id", shop_id).execute()
@@ -59,7 +63,7 @@ class PinService:
         if self.verify_pin_hash(pin, shop["pin_hash"]):
             # 성공 시 실패 횟수 초기화
             if shop.get("pin_failed_count", 0) > 0:
-                self.db.table("shops").update({
+                self.admin_db.table("shops").update({
                     "pin_failed_count": 0
                 }).eq("id", shop_id).execute()
             return True, MAX_FAILED_ATTEMPTS, None
@@ -74,10 +78,10 @@ class PinService:
         if failed_count >= MAX_FAILED_ATTEMPTS:
             locked_until = datetime.now() + timedelta(minutes=LOCK_DURATION_MINUTES)
             update_data["pin_locked_until"] = locked_until.isoformat()
-            self.db.table("shops").update(update_data).eq("id", shop_id).execute()
+            self.admin_db.table("shops").update(update_data).eq("id", shop_id).execute()
             return False, 0, locked_until
 
-        self.db.table("shops").update(update_data).eq("id", shop_id).execute()
+        self.admin_db.table("shops").update(update_data).eq("id", shop_id).execute()
         return False, remaining, None
 
     async def change_pin(self, shop_id: str, current_pin: str, new_pin: str) -> bool:
@@ -89,7 +93,7 @@ class PinService:
 
         # 새 PIN 저장
         new_hash = self.hash_pin(new_pin)
-        self.db.table("shops").update({
+        self.admin_db.table("shops").update({
             "pin_hash": new_hash,
             "updated_at": datetime.now().isoformat()
         }).eq("id", shop_id).execute()
@@ -99,7 +103,7 @@ class PinService:
     async def reset_pin(self, shop_id: str, new_pin: str) -> bool:
         """PIN 재설정 (소셜 로그인 재인증 후)"""
         new_hash = self.hash_pin(new_pin)
-        self.db.table("shops").update({
+        self.admin_db.table("shops").update({
             "pin_hash": new_hash,
             "pin_failed_count": 0,
             "pin_locked_until": None,

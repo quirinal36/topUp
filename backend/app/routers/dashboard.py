@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime, date, timedelta
 from collections import Counter
 
-from ..database import get_db
+from ..database import get_supabase_admin_client
 from ..routers.auth import get_current_shop
 from ..schemas.transaction import (
     DashboardSummary,
@@ -21,10 +21,12 @@ router = APIRouter(prefix="/api/dashboard", tags=["대시보드"])
 
 @router.get("/summary", response_model=DashboardSummary)
 async def get_dashboard_summary(
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """대시보드 요약 정보"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     # 해당 상점의 고객 목록
     customers = db.table("customers").select("id, current_balance").eq("shop_id", shop_id).execute()
     customer_ids = [c["id"] for c in customers.data]
@@ -62,10 +64,12 @@ async def get_period_analytics(
     period_type: str = Query("daily", enum=["daily", "weekly", "monthly"]),
     start_date: Optional[str] = Query(None, description="시작일 (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="종료일 (YYYY-MM-DD)"),
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """기간별 매출 현황"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     # 해당 상점의 고객 목록
     customers = db.table("customers").select("id").eq("shop_id", shop_id).execute()
     customer_ids = [c["id"] for c in customers.data]
@@ -129,10 +133,12 @@ async def get_period_analytics(
 @router.get("/analytics/top-customers")
 async def get_top_customers(
     limit: int = Query(10, ge=1, le=50),
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """상위 충전 고객 순위"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     # 해당 상점의 고객 목록
     customers = db.table("customers").select("id, name").eq("shop_id", shop_id).execute()
     customer_map = {c["id"]: c["name"] for c in customers.data}
@@ -174,10 +180,12 @@ async def get_top_customers(
 async def get_payment_method_stats(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """결제 수단별 현황"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     customers = db.table("customers").select("id").eq("shop_id", shop_id).execute()
     customer_ids = [c["id"] for c in customers.data]
 
@@ -222,10 +230,12 @@ async def get_payment_method_stats(
 @router.get("/analytics/popular-menus")
 async def get_popular_menus(
     limit: int = Query(10, ge=1, le=50),
-    shop_id: str = Depends(get_current_shop),
-    db=Depends(get_db)
+    shop_id: str = Depends(get_current_shop)
 ):
     """인기 메뉴 분석 (비고 기반)"""
+    # RLS 우회를 위해 admin 클라이언트 사용
+    db = get_supabase_admin_client()
+
     customers = db.table("customers").select("id").eq("shop_id", shop_id).execute()
     customer_ids = [c["id"] for c in customers.data]
 
