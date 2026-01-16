@@ -5,6 +5,7 @@ import Input from '../common/Input';
 import Button from '../common/Button';
 import { PaymentMethod } from '../../types';
 import { charge } from '../../api/transactions';
+import { useToast } from '../../contexts/ToastContext';
 
 interface ChargeModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export default function ChargeModal({
   customerName,
   onSuccess,
 }: ChargeModalProps) {
+  const toast = useToast();
   const [actualPayment, setActualPayment] = useState('');
   const [serviceAmount, setServiceAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
@@ -53,9 +55,11 @@ export default function ChargeModal({
         payment_method: paymentMethod,
         note: note || undefined,
       });
+      toast.success(`${customerName}님에게 ${totalAmount.toLocaleString()}원이 충전되었습니다`);
       onSuccess();
       handleClose();
     } catch (err) {
+      toast.error('충전에 실패했습니다');
       setError('충전에 실패했습니다');
     } finally {
       setIsLoading(false);

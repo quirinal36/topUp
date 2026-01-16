@@ -3,6 +3,7 @@ import Modal from '../common/Modal';
 import Input from '../common/Input';
 import Button from '../common/Button';
 import { deduct } from '../../api/transactions';
+import { useToast } from '../../contexts/ToastContext';
 
 interface DeductModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export default function DeductModal({
   currentBalance,
   onSuccess,
 }: DeductModalProps) {
+  const toast = useToast();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -50,10 +52,13 @@ export default function DeductModal({
         amount: amountNum,
         note: note || undefined,
       });
+      toast.success(`${customerName}님의 ${amountNum.toLocaleString()}원이 사용되었습니다`);
       onSuccess();
       handleClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || '차감에 실패했습니다');
+      const errorMsg = err.response?.data?.detail || '차감에 실패했습니다';
+      toast.error(errorMsg);
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }

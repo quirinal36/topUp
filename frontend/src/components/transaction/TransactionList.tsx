@@ -5,6 +5,7 @@ import { cancelTransaction } from '../../api/transactions';
 import Button from '../common/Button';
 import PinVerifyModal from '../common/PinVerifyModal';
 import { usePinVerify } from '../../hooks/usePinVerify';
+import { useToast } from '../../contexts/ToastContext';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -12,15 +13,16 @@ interface TransactionListProps {
   onTransactionCancelled?: () => void;
 }
 
-export default function TransactionList({ 
-  transactions, 
+export default function TransactionList({
+  transactions,
   showCustomer: _showCustomer = false,
   onTransactionCancelled,
 }: TransactionListProps) {
+  const toast = useToast();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   const { isPinModalOpen, closePinModal, withPinVerification, handlePinVerified } = usePinVerify();
 
   const formatCurrency = (amount: number) => {
@@ -95,10 +97,13 @@ export default function TransactionList({
     setCancellingId(transactionId);
     try {
       await cancelTransaction({ transaction_id: transactionId });
+      toast.success('거래가 취소되었습니다');
       onTransactionCancelled?.();
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } } };
-      setError(error.response?.data?.detail || '거래 취소에 실패했습니다');
+      const errorObj = err as { response?: { data?: { detail?: string } } };
+      const errorMsg = errorObj.response?.data?.detail || '거래 취소에 실패했습니다';
+      toast.error(errorMsg);
+      setError(errorMsg);
     } finally {
       setCancellingId(null);
     }

@@ -14,10 +14,12 @@ import { getTransactions } from '../api/transactions';
 import { updateCustomer, deleteCustomer } from '../api/customers';
 import { Transaction } from '../types';
 import { usePinVerify } from '../hooks/usePinVerify';
+import { useToast } from '../contexts/ToastContext';
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const { selectedCustomer, fetchCustomer, isLoading } = useCustomerStore();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -88,7 +90,7 @@ export default function CustomerDetail() {
   const handleDeleteClick = () => {
     if (!selectedCustomer) return;
     if (selectedCustomer.current_balance !== 0) {
-      alert('잔액이 0원인 고객만 삭제할 수 있습니다.');
+      toast.warning('잔액이 0원인 고객만 삭제할 수 있습니다');
       return;
     }
     setPinAction('delete');
@@ -114,26 +116,31 @@ export default function CustomerDetail() {
 
     try {
       await updateCustomer(id, { name: editName.trim(), phone_suffix: editPhone });
+      toast.success('고객 정보가 수정되었습니다');
       fetchCustomer(id);
       setIsEditModalOpen(false);
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } } };
-      setEditError(error.response?.data?.detail || '수정에 실패했습니다');
+      const errorObj = err as { response?: { data?: { detail?: string } } };
+      const errorMsg = errorObj.response?.data?.detail || '수정에 실패했습니다';
+      toast.error(errorMsg);
+      setEditError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteConfirm = async () => {
-    if (!id) return;
+    if (!id || !selectedCustomer) return;
 
     setIsSubmitting(true);
     try {
       await deleteCustomer(id);
+      toast.success(`${selectedCustomer.name} 고객이 삭제되었습니다`);
       navigate('/customers');
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } } };
-      alert(error.response?.data?.detail || '삭제에 실패했습니다');
+      const errorObj = err as { response?: { data?: { detail?: string } } };
+      const errorMsg = errorObj.response?.data?.detail || '삭제에 실패했습니다';
+      toast.error(errorMsg);
     } finally {
       setIsSubmitting(false);
       setIsDeleteConfirmOpen(false);

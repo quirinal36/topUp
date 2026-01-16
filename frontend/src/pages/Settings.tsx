@@ -6,8 +6,10 @@ import Input from '../components/common/Input';
 import Modal from '../components/common/Modal';
 import { useAuthStore } from '../stores/authStore';
 import { changePin } from '../api/auth';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Settings() {
+  const toast = useToast();
   const { darkMode, toggleDarkMode, shopName } = useAuthStore();
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [currentPin, setCurrentPin] = useState('');
@@ -35,10 +37,12 @@ export default function Settings() {
 
     try {
       await changePin(currentPin, newPin);
+      toast.success('PIN이 변경되었습니다');
       handleClosePinModal();
-      alert('PIN이 변경되었습니다');
     } catch (error: any) {
-      setPinError(error.response?.data?.detail || 'PIN 변경에 실패했습니다');
+      const errorMsg = error.response?.data?.detail || 'PIN 변경에 실패했습니다';
+      toast.error(errorMsg);
+      setPinError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }

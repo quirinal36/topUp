@@ -5,14 +5,15 @@ import Modal from '../components/common/Modal';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { useCustomerStore } from '../stores/customerStore';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Customers() {
+  const toast = useToast();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
 
   const { createCustomer } = useCustomerStore();
 
@@ -32,11 +33,12 @@ export default function Customers() {
     try {
       const customerName = newName.trim();
       await createCustomer(customerName, newPhone);
-      setSuccessMessage(`${customerName} 고객 등록에 성공하였습니다.`);
-      setTimeout(() => setSuccessMessage(''), 3000);
+      toast.success(`${customerName} 고객이 등록되었습니다`);
       handleCloseModal();
     } catch (err: any) {
-      setError(err.response?.data?.detail || '고객 등록에 실패했습니다');
+      const errorMsg = err.response?.data?.detail || '고객 등록에 실패했습니다';
+      toast.error(errorMsg);
+      setError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -52,12 +54,6 @@ export default function Customers() {
   return (
     <div className="space-y-6">
       <h1 className="text-heading-2 text-gray-900 dark:text-white">고객 관리</h1>
-
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative dark:bg-green-900 dark:border-green-600 dark:text-green-200">
-          {successMessage}
-        </div>
-      )}
 
       <CustomerSearch onAddClick={() => setIsAddModalOpen(true)} />
       <CustomerList />
