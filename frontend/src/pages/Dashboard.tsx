@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // 입력 필드용 상태
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 30;
@@ -53,13 +54,18 @@ export default function Dashboard() {
     fetchData();
   }, [fetchData]);
 
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  // 검색 버튼 클릭 핸들러
+  const handleSearch = () => {
+    setSearchQuery(searchInput);
+    setPage(1);
+  };
+
+  // Enter 키로 검색
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -134,11 +140,16 @@ export default function Dashboard() {
           <input
             type="text"
             placeholder="고객 이름 또는 연락처로 검색..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
             className="w-full pl-10 pr-4 py-3 rounded-button border border-gray-200 dark:border-primary-800/50 bg-white dark:bg-primary-900/20 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
+        <Button onClick={handleSearch} variant="outline">
+          <Search className="w-5 h-5 mr-1" />
+          검색
+        </Button>
         <Button onClick={() => setIsAddCustomerModalOpen(true)}>
           <UserPlus className="w-5 h-5 mr-1" />
           고객 등록

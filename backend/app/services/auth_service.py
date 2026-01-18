@@ -6,7 +6,7 @@ import logging
 import os
 import random
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 from jose import jwt, JWTError
 import bcrypt
@@ -70,39 +70,92 @@ class AuthService:
         except Exception:
             return False
 
-    def create_access_token(self, shop_id: str) -> str:
-        """JWT 액세스 토큰 생성"""
-        expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+    def create_access_token(self, shop_id: str) -> Tuple[str, str]:
+        """
+        JWT 액세스 토큰 생성
+        Returns: (token, jti) - 토큰과 JWT ID
+        """
+        now = datetime.now(timezone.utc)
+        expire = now + timedelta(minutes=settings.access_token_expire_minutes)
+        jti = str(uuid.uuid4())
         to_encode = {
             "sub": shop_id,
             "exp": expire,
             "type": "access",
-            "iat": datetime.utcnow()
+            "iat": now,
+            "jti": jti  # JWT ID for revocation
         }
-        return jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        token = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        return token, jti
 
-    def create_refresh_token(self, shop_id: str) -> str:
-        """JWT 리프레시 토큰 생성"""
-        expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+    def create_refresh_token(self, shop_id: str) -> Tuple[str, str]:
+        """
+        JWT 리프레시 토큰 생성
+        Returns: (token, jti) - 토큰과 JWT ID
+        """
+        now = datetime.now(timezone.utc)
+        expire = now + timedelta(days=settings.refresh_token_expire_days)
+        jti = str(uuid.uuid4())
         to_encode = {
             "sub": shop_id,
             "exp": expire,
             "type": "refresh",
-            "iat": datetime.utcnow()
+            "iat": now,
+            "jti": jti  # JWT ID for revocation
         }
-        return jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        token = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        return token, jti
+
+    def _is_token_blacklisted(self, jti: str) -> bool:
+        """토큰이 블랙리스트에 있는지 확인"""
+        try:
+            result = self.admin_db.table("token_blacklist").select("jti").eq("jti", jti).maybe_single().execute()
+            return result is not None and result.data is not None
+        except Exception as e:
+            logger.error(f"[AUTH] 블랙리스트 확인 오류: {str(e)}")
+            return False  # 오류 시 보수적으로 허용
+
+    def blacklist_token(self, jti: str, shop_id: str, expires_at: datetime) -> bool:
+        """토큰을 블랙리스트에 추가"""
+        try:
+            self.admin_db.table("token_blacklist").insert({
+                "jti": jti,
+                "shop_id": shop_id,
+                "expires_at": expires_at.isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
+            logger.info(f"[AUTH] 토큰 블랙리스트 추가 - jti: {jti[:8]}...")
+            return True
+        except Exception as e:
+            logger.error(f"[AUTH] 블랙리스트 추가 오류: {str(e)}")
+            return False
 
     def verify_token(self, token: str, token_type: str = "access") -> Optional[str]:
-        """토큰 검증 및 shop_id 반환"""
+        """토큰 검증 및 shop_id 반환 (블랙리스트 확인 포함)"""
         try:
             payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
             shop_id: str = payload.get("sub")
             actual_type: str = payload.get("type")
+            jti: str = payload.get("jti")
 
             # 토큰 타입 검증
             if shop_id is None or actual_type != token_type:
                 return None
+
+            # jti가 있으면 블랙리스트 확인
+            if jti and self._is_token_blacklisted(jti):
+                logger.debug(f"[AUTH] 블랙리스트된 토큰 - jti: {jti[:8]}...")
+                return None
+
             return shop_id
+        except JWTError:
+            return None
+
+    def get_token_payload(self, token: str) -> Optional[Dict[str, Any]]:
+        """토큰에서 페이로드 추출 (검증 없이)"""
+        try:
+            payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+            return payload
         except JWTError:
             return None
 
@@ -112,7 +165,7 @@ class AuthService:
         if not shop_id:
             return None
 
-        access_token = self.create_access_token(shop_id)
+        access_token, _ = self.create_access_token(shop_id)
         return {
             "access_token": access_token,
             "token_type": "bearer",
@@ -140,9 +193,9 @@ class AuthService:
 
         logger.info(f"[LOGIN] 로그인 성공 - shop_id: {shop['id'][:8]}...")
 
-        # 토큰 생성
-        access_token = self.create_access_token(shop["id"])
-        refresh_token = self.create_refresh_token(shop["id"])
+        # 토큰 생성 (jti 포함)
+        access_token, _ = self.create_access_token(shop["id"])
+        refresh_token, _ = self.create_refresh_token(shop["id"])
 
         return {
             "access_token": access_token,
@@ -171,6 +224,7 @@ class AuthService:
         initial_pin = _generate_random_pin()
         initial_pin_hash = self.pin_service.hash_pin(initial_pin)
 
+        now = datetime.now(timezone.utc)
         self.admin_db.table("shops").insert({
             "id": shop_id,
             "email": email.lower(),
@@ -178,15 +232,15 @@ class AuthService:
             "name": shop_name,
             "pin_hash": initial_pin_hash,
             "pin_change_required": True,  # 첫 로그인 시 PIN 변경 필요
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
         }).execute()
 
         logger.info(f"[REGISTER] 회원가입 성공 - shop_id: {shop_id[:8]}...")
 
-        # 토큰 생성
-        access_token = self.create_access_token(shop_id)
-        refresh_token = self.create_refresh_token(shop_id)
+        # 토큰 생성 (jti 포함)
+        access_token, _ = self.create_access_token(shop_id)
+        refresh_token, _ = self.create_refresh_token(shop_id)
 
         return {
             "access_token": access_token,
@@ -213,13 +267,14 @@ class AuthService:
 
     def _create_reset_token(self, shop_id: str, email: str) -> str:
         """비밀번호 재설정용 임시 토큰 생성 (15분 유효)"""
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        now = datetime.now(timezone.utc)
+        expire = now + timedelta(minutes=15)
         to_encode = {
             "sub": shop_id,
             "email": email,
             "exp": expire,
             "type": "password_reset",
-            "iat": datetime.utcnow()
+            "iat": now
         }
         return jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
@@ -257,7 +312,8 @@ class AuthService:
             # 6자리 인증번호 생성
             reset_code = _generate_reset_code()
             code_hash = self._hash_reset_code(reset_code)
-            expires_at = datetime.now() + timedelta(minutes=RESET_CODE_EXPIRE_MINUTES)
+            now = datetime.now(timezone.utc)
+            expires_at = now + timedelta(minutes=RESET_CODE_EXPIRE_MINUTES)
 
             # 인증번호 저장 (기존 코드 덮어쓰기)
             self.admin_db.table("shops").update({
@@ -265,7 +321,7 @@ class AuthService:
                 "reset_code_expires_at": expires_at.isoformat(),
                 "reset_code_failed_count": 0,
                 "reset_code_locked_until": None,
-                "updated_at": datetime.now().isoformat()
+                "updated_at": now.isoformat()
             }).eq("id", shop_id).execute()
 
             # 이메일 발송 (Supabase Edge Function 또는 외부 서비스)
@@ -366,15 +422,16 @@ class AuthService:
         failed_count = (shop.get("reset_code_failed_count") or 0) + 1
         remaining = RESET_MAX_FAILED_ATTEMPTS - failed_count
 
+        now = datetime.now(timezone.utc)
         update_data = {
             "reset_code_failed_count": failed_count,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": now.isoformat()
         }
 
         # 최대 실패 횟수 도달 시 잠금
         new_locked_until = None
         if failed_count >= RESET_MAX_FAILED_ATTEMPTS:
-            new_locked_until = datetime.now() + timedelta(minutes=RESET_LOCK_DURATION_MINUTES)
+            new_locked_until = now + timedelta(minutes=RESET_LOCK_DURATION_MINUTES)
             update_data["reset_code_locked_until"] = new_locked_until.isoformat()
             remaining = 0
             logger.warning(f"[PASSWORD_RESET] 계정 잠금 - shop_id: {shop_id[:8]}...")
@@ -407,7 +464,7 @@ class AuthService:
             "reset_code_expires_at": None,
             "reset_code_failed_count": 0,
             "reset_code_locked_until": None,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("id", shop_id).execute()
 
         logger.info(f"[PASSWORD_RESET] 비밀번호 변경 완료 - shop_id: {shop_id[:8]}...")
