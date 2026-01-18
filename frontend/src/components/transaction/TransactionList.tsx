@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpCircle, ArrowDownCircle, XCircle, MoreVertical, Undo2 } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, XCircle, MoreVertical, Undo2, Coffee } from 'lucide-react';
 import { Transaction } from '../../types';
 import { cancelTransaction } from '../../api/transactions';
 import Button from '../common/Button';
@@ -152,7 +152,8 @@ export default function TransactionList({
                   )}
                 </div>
                 {transaction.note && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
+                    {transaction.type === 'DEDUCT' && <Coffee className="w-3 h-3 flex-shrink-0" />}
                     {transaction.note}
                   </p>
                 )}

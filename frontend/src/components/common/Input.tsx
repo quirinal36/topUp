@@ -7,7 +7,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, id, ...props }, ref) => {
+  ({ className, label, error, id, disabled, ...props }, ref) => {
     return (
       <div className="w-full">
         {label && (
@@ -18,11 +18,13 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           id={id}
+          disabled={disabled}
           className={clsx(
             'w-full min-h-touch px-4 py-2 rounded-button border bg-white text-gray-900 placeholder-gray-400',
             'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
             'dark:bg-[#3d322c] dark:border-primary-800/50 dark:text-white dark:placeholder-gray-500',
             error ? 'border-error-500' : 'border-gray-300',
+            disabled && 'bg-gray-100 dark:bg-[#2d2420] cursor-not-allowed opacity-70',
             className
           )}
           {...props}

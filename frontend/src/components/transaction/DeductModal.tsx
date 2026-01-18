@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import Input from '../common/Input';
 import Button from '../common/Button';
 import { deduct } from '../../api/transactions';
+import { getMenus } from '../../api/menus';
 import { useToast } from '../../contexts/ToastContext';
+import { Menu } from '../../types';
 
 interface DeductModalProps {
   isOpen: boolean;
@@ -27,6 +29,36 @@ export default function DeductModal({
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [menus, setMenus] = useState<Menu[]>([]);
+  const [selectedMenuId, setSelectedMenuId] = useState<string>('');
+
+  // 메뉴 목록 불러오기
+  useEffect(() => {
+    if (isOpen) {
+      getMenus(false).then((response) => {
+        setMenus(response.menus);
+      }).catch(() => {
+        // 메뉴 로드 실패해도 수동 입력은 가능하도록
+        setMenus([]);
+      });
+    }
+  }, [isOpen]);
+
+  // 메뉴 선택 시 금액 및 노트 자동 설정
+  const handleMenuSelect = (menuId: string) => {
+    setSelectedMenuId(menuId);
+    if (menuId) {
+      const selectedMenu = menus.find((m) => m.id === menuId);
+      if (selectedMenu) {
+        setAmount(selectedMenu.price.toString());
+        setNote(selectedMenu.name);
+      }
+    } else {
+      // "직접 입력" 선택 시 초기화
+      setAmount('');
+      setNote('');
+    }
+  };
 
   // 빠른 금액 선택
   const quickAmounts = [3000, 5000, 10000, 15000, 20000];
@@ -68,6 +100,7 @@ export default function DeductModal({
     setAmount('');
     setNote('');
     setError('');
+    setSelectedMenuId('');
     onClose();
   };
 
@@ -87,28 +120,51 @@ export default function DeductModal({
           </p>
         </div>
 
-        {/* 빠른 금액 선택 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            빠른 선택
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {quickAmounts.map((quickAmount) => (
-              <button
-                key={quickAmount}
-                type="button"
-                onClick={() => setAmount(quickAmount.toString())}
-                className={`px-3 py-2 rounded-button border text-sm font-medium transition-colors min-h-touch
-                  ${parseInt(amount) === quickAmount
-                    ? 'border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-primary-800/50 dark:text-gray-400'
-                  }`}
-              >
-                {quickAmount.toLocaleString()}원
-              </button>
-            ))}
+        {/* 메뉴 선택 드롭다운 */}
+        {menus.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              메뉴 선택
+            </label>
+            <select
+              value={selectedMenuId}
+              onChange={(e) => handleMenuSelect(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-button text-sm bg-white dark:bg-[#2d2420] dark:border-primary-800/50 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">직접 입력</option>
+              {menus.map((menu) => (
+                <option key={menu.id} value={menu.id}>
+                  {menu.name} - {menu.price.toLocaleString()}원
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
+        )}
+
+        {/* 빠른 금액 선택 - 메뉴 미선택 시에만 표시 */}
+        {!selectedMenuId && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              빠른 선택
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {quickAmounts.map((quickAmount) => (
+                <button
+                  key={quickAmount}
+                  type="button"
+                  onClick={() => setAmount(quickAmount.toString())}
+                  className={`px-3 py-2 rounded-button border text-sm font-medium transition-colors min-h-touch
+                    ${parseInt(amount) === quickAmount
+                      ? 'border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-primary-800/50 dark:text-gray-400'
+                    }`}
+                >
+                  {quickAmount.toLocaleString()}원
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 사용 금액 */}
         <Input
@@ -116,16 +172,23 @@ export default function DeductModal({
           type="number"
           placeholder="0"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => {
+            setAmount(e.target.value);
+            // 금액 직접 수정 시 메뉴 선택 해제
+            if (selectedMenuId) {
+              setSelectedMenuId('');
+            }
+          }}
         />
 
-        {/* 비고 (주문 메뉴) */}
+        {/* 비고 (주문 메뉴) - 메뉴 선택 시 읽기 전용 */}
         <Input
           label="주문 메뉴 (선택)"
           type="text"
           placeholder="아메리카노, 카페라떼"
           value={note}
           onChange={(e) => setNote(e.target.value)}
+          disabled={!!selectedMenuId}
         />
 
         {/* 차감 후 잔액 미리보기 */}
