@@ -44,6 +44,8 @@ export const getCurrentShop = async (): Promise<{
   id: string;
   name: string;
   email?: string;
+  business_number?: string;
+  onboarding_completed: boolean;
   created_at: string;
 }> => {
   const response = await apiClient.get('/auth/me');
@@ -55,6 +57,8 @@ export const updateShop = async (name: string): Promise<{
   id: string;
   name: string;
   email?: string;
+  business_number?: string;
+  onboarding_completed: boolean;
   created_at: string;
 }> => {
   const response = await apiClient.put('/auth/me', { name });

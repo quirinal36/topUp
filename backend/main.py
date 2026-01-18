@@ -5,7 +5,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.routers import auth_router, customers_router, transactions_router, dashboard_router
+from app.routers import auth_router, customers_router, transactions_router, dashboard_router, menus_router, onboarding_router
 
 settings = get_settings()
 
@@ -33,6 +33,8 @@ app.include_router(auth_router)
 app.include_router(customers_router)
 app.include_router(transactions_router)
 app.include_router(dashboard_router)
+app.include_router(menus_router)
+app.include_router(onboarding_router)
 
 
 @app.get("/")

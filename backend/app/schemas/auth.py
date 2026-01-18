@@ -65,6 +65,8 @@ class ShopResponse(BaseModel):
     id: str
     name: str
     email: Optional[str] = None
+    business_number: Optional[str] = None
+    onboarding_completed: bool = False
     created_at: str
 
 

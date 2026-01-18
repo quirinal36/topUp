@@ -13,6 +13,7 @@ interface AuthState {
   pinVerified: boolean;
   darkMode: boolean;
   lastActivityTime: number | null;
+  onboardingCompleted: boolean | null;
 
   // Actions
   login: (token: string) => Promise<void>;
@@ -23,6 +24,7 @@ interface AuthState {
   setShopName: (name: string) => void;
   updateActivity: () => void;
   checkPinTimeout: () => boolean;
+  setOnboardingCompleted: (completed: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -35,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
       pinVerified: false,
       darkMode: false,
       lastActivityTime: null,
+      onboardingCompleted: null,
 
       login: async (token: string) => {
         localStorage.setItem('access_token', token);
@@ -46,6 +49,7 @@ export const useAuthStore = create<AuthState>()(
             shopName: shop.name,
             token,
             pinVerified: false,
+            onboardingCompleted: shop.onboarding_completed ?? false,
           });
         } catch (error) {
           console.error('Failed to get shop info:', error);
@@ -106,6 +110,10 @@ export const useAuthStore = create<AuthState>()(
         }
         return false;
       },
+
+      setOnboardingCompleted: (completed: boolean) => {
+        set({ onboardingCompleted: completed });
+      },
     }),
     {
       name: 'auth-storage',
@@ -116,6 +124,7 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         darkMode: state.darkMode,
         lastActivityTime: state.lastActivityTime,
+        onboardingCompleted: state.onboardingCompleted,
       }),
     }
   )

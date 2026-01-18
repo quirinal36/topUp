@@ -13,6 +13,7 @@ import CustomerDetail from './pages/CustomerDetail';
 import Transactions from './pages/Transactions';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import Onboarding from './pages/Onboarding';
 
 // 활동 추적 및 PIN 타임아웃 체크 훅
 function useActivityTracker() {
@@ -50,8 +51,8 @@ function useActivityTracker() {
   }, [isAuthenticated, handleActivity, checkPinTimeout]);
 }
 
-// 인증이 필요한 라우트 보호
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+// 인증만 확인하는 래퍼 (온보딩 페이지용)
+function AuthenticatedOnly({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, token, logout } = useAuthStore();
   const [isValidating, setIsValidating] = useState(true);
   const [isValid, setIsValid] = useState(false);
@@ -68,7 +69,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         await getCurrentShop();
         setIsValid(true);
       } catch {
-        // 토큰이 만료되었거나 유효하지 않음
         logout();
         setIsValid(false);
       } finally {
@@ -91,6 +91,59 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
+  return <>{children}</>;
+}
+
+// 인증이 필요한 라우트 보호 (온보딩 체크 포함)
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, token, logout, onboardingCompleted, setOnboardingCompleted } = useAuthStore();
+  const [isValidating, setIsValidating] = useState(true);
+  const [isValid, setIsValid] = useState(false);
+
+  useEffect(() => {
+    const validateToken = async () => {
+      if (!isAuthenticated || !token) {
+        setIsValidating(false);
+        setIsValid(false);
+        return;
+      }
+
+      try {
+        const shop = await getCurrentShop();
+        setIsValid(true);
+        // 온보딩 상태 동기화
+        if (shop.onboarding_completed !== undefined) {
+          setOnboardingCompleted(shop.onboarding_completed);
+        }
+      } catch {
+        // 토큰이 만료되었거나 유효하지 않음
+        logout();
+        setIsValid(false);
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateToken();
+  }, [isAuthenticated, token, logout, setOnboardingCompleted]);
+
+  if (isValidating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-gray-500 dark:text-gray-400">로딩 중...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !isValid) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // 온보딩이 완료되지 않았으면 온보딩 페이지로 리다이렉트
+  if (onboardingCompleted === false) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   return <Layout>{children}</Layout>;
 }
 
@@ -109,6 +162,16 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+
+        {/* 온보딩 라우트 (인증만 필요, 온보딩 체크 안함) */}
+        <Route
+          path="/onboarding"
+          element={
+            <AuthenticatedOnly>
+              <Onboarding />
+            </AuthenticatedOnly>
+          }
+        />
 
         {/* 보호된 라우트 */}
         <Route

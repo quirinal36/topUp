@@ -4,7 +4,7 @@
 """
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple
 from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -42,7 +42,9 @@ from ..schemas.auth import (
 
 # ========== Rate Limiting 구현 ==========
 # 인메모리 저장소 (프로덕션에서는 Redis 권장)
-_login_attempts: Dict[str, Tuple[int, datetime]] = defaultdict(lambda: (0, datetime.min))
+# datetime.min에 timezone 정보 추가 (aware datetime과 비교하기 위함)
+_datetime_min_utc = datetime.min.replace(tzinfo=timezone.utc)
+_login_attempts: Dict[str, Tuple[int, datetime]] = defaultdict(lambda: (0, _datetime_min_utc))
 
 
 def _get_client_ip(request: Request) -> str:
@@ -61,11 +63,12 @@ def _check_rate_limit(ip: str) -> Tuple[bool, int, datetime]:
     attempts, first_attempt_time = _login_attempts[ip]
     limit_window = timedelta(minutes=settings.login_rate_limit_minutes)
     max_attempts = settings.login_rate_limit_attempts
+    now = datetime.now(timezone.utc)
 
     # 제한 시간이 지났으면 초기화
-    if datetime.now() - first_attempt_time > limit_window:
-        _login_attempts[ip] = (0, datetime.min)
-        return True, max_attempts, datetime.now() + limit_window
+    if now - first_attempt_time > limit_window:
+        _login_attempts[ip] = (0, _datetime_min_utc)
+        return True, max_attempts, now + limit_window
 
     remaining = max_attempts - attempts
     reset_time = first_attempt_time + limit_window
@@ -80,11 +83,11 @@ def _record_login_attempt(ip: str, success: bool):
     """로그인 시도 기록"""
     if success:
         # 성공하면 카운터 초기화
-        _login_attempts[ip] = (0, datetime.min)
+        _login_attempts[ip] = (0, _datetime_min_utc)
     else:
         attempts, first_time = _login_attempts[ip]
-        if first_time == datetime.min:
-            first_time = datetime.now()
+        if first_time == _datetime_min_utc:
+            first_time = datetime.now(timezone.utc)
         _login_attempts[ip] = (attempts + 1, first_time)
 
 router = APIRouter(prefix="/api/auth", tags=["인증"])
@@ -128,7 +131,7 @@ async def login(
     # Rate Limit 확인
     is_allowed, remaining, reset_time = _check_rate_limit(client_ip)
     if not is_allowed:
-        seconds_until_reset = int((reset_time - datetime.now()).total_seconds())
+        seconds_until_reset = int((reset_time - datetime.now(timezone.utc)).total_seconds())
         logger.warning(f"[LOGIN] Rate limit exceeded for IP: {client_ip[:10]}...")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -198,6 +201,32 @@ async def refresh_token(
     return result
 
 
+@router.post("/logout")
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """
+    로그아웃 - 현재 토큰을 블랙리스트에 추가
+    클라이언트는 이 API 호출 후 로컬 토큰도 삭제해야 함
+    """
+    token = credentials.credentials
+    payload = auth_service.get_token_payload(token)
+
+    if payload:
+        jti = payload.get("jti")
+        shop_id = payload.get("sub")
+        exp = payload.get("exp")
+
+        if jti and shop_id and exp:
+            # exp는 Unix timestamp
+            expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+            auth_service.blacklist_token(jti, shop_id, expires_at)
+            logger.info(f"[LOGOUT] 로그아웃 성공 - shop_id: {shop_id[:8]}...")
+
+    return {"message": "로그아웃되었습니다"}
+
+
 @router.post("/pin/verify", response_model=PinVerifyResponse)
 async def verify_pin(
     request: PinVerifyRequest,
@@ -252,7 +281,9 @@ async def get_current_shop_info(
 ):
     """현재 로그인된 상점 정보 조회"""
     admin_db = get_supabase_admin_client()
-    result = admin_db.table("shops").select("id, name, email, created_at").eq("id", shop_id).maybe_single().execute()
+    result = admin_db.table("shops").select(
+        "id, name, email, business_number, onboarding_completed, created_at"
+    ).eq("id", shop_id).maybe_single().execute()
     if not result or not result.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -270,10 +301,9 @@ async def update_current_shop_info(
     """현재 로그인된 상점 정보 수정"""
     admin_db = get_supabase_admin_client()
 
-    from datetime import datetime
     admin_db.table("shops").update({
         "name": request.name,
-        "updated_at": datetime.now().isoformat()
+        "updated_at": datetime.now(timezone.utc).isoformat()
     }).eq("id", shop_id).execute()
 
     # 업데이트된 정보 반환
@@ -290,7 +320,7 @@ async def update_current_shop_info(
 # ========== 비밀번호 재설정 엔드포인트 ==========
 
 # 비밀번호 재설정 요청 Rate Limiting (IP당 시간당 3회)
-_reset_request_attempts: Dict[str, Tuple[int, datetime]] = defaultdict(lambda: (0, datetime.min))
+_reset_request_attempts: Dict[str, Tuple[int, datetime]] = defaultdict(lambda: (0, _datetime_min_utc))
 
 
 def _check_reset_rate_limit(ip: str) -> Tuple[bool, int]:
@@ -298,10 +328,11 @@ def _check_reset_rate_limit(ip: str) -> Tuple[bool, int]:
     attempts, first_attempt_time = _reset_request_attempts[ip]
     limit_window = timedelta(hours=1)  # 1시간
     max_attempts = 3  # 시간당 3회
+    now = datetime.now(timezone.utc)
 
     # 제한 시간이 지났으면 초기화
-    if datetime.now() - first_attempt_time > limit_window:
-        _reset_request_attempts[ip] = (1, datetime.now())
+    if now - first_attempt_time > limit_window:
+        _reset_request_attempts[ip] = (1, now)
         return True, max_attempts - 1
 
     if attempts >= max_attempts:

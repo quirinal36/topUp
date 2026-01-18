@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { Moon, Sun, Key, Link2, Store, Edit2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Moon, Sun, Key, Link2, Store, Edit2, Coffee, Plus, Trash2, FileText } from 'lucide-react';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Modal from '../components/common/Modal';
 import { useAuthStore } from '../stores/authStore';
 import { changePin, updateShop } from '../api/auth';
+import { getMenus, createMenu, updateMenu, deleteMenu } from '../api/menus';
 import { useToast } from '../contexts/ToastContext';
+import { Menu } from '../types';
 
 export default function Settings() {
   const toast = useToast();
@@ -25,6 +27,31 @@ export default function Settings() {
   const [confirmPin, setConfirmPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 메뉴 관리 상태
+  const [menus, setMenus] = useState<Menu[]>([]);
+  const [isMenusLoading, setIsMenusLoading] = useState(true);
+  const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
+  const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
+  const [menuName, setMenuName] = useState('');
+  const [menuPrice, setMenuPrice] = useState('');
+  const [menuError, setMenuError] = useState('');
+  const [isMenuSubmitting, setIsMenuSubmitting] = useState(false);
+
+  // 메뉴 목록 로드
+  useEffect(() => {
+    const loadMenus = async () => {
+      try {
+        const result = await getMenus(true);
+        setMenus(result.menus);
+      } catch {
+        toast.error('메뉴 목록을 불러오지 못했습니다');
+      } finally {
+        setIsMenusLoading(false);
+      }
+    };
+    loadMenus();
+  }, [toast]);
 
   const handlePinChange = async () => {
     if (!currentPin || currentPin.length !== 4) {
@@ -99,6 +126,86 @@ export default function Settings() {
     }
   };
 
+  // 메뉴 모달 열기 (추가/수정)
+  const handleOpenMenuModal = (menu?: Menu) => {
+    if (menu) {
+      setEditingMenu(menu);
+      setMenuName(menu.name);
+      setMenuPrice(menu.price.toString());
+    } else {
+      setEditingMenu(null);
+      setMenuName('');
+      setMenuPrice('');
+    }
+    setMenuError('');
+    setIsMenuModalOpen(true);
+  };
+
+  const handleCloseMenuModal = () => {
+    setIsMenuModalOpen(false);
+    setEditingMenu(null);
+    setMenuName('');
+    setMenuPrice('');
+    setMenuError('');
+  };
+
+  // 메뉴 저장 (추가/수정)
+  const handleSaveMenu = async () => {
+    if (!menuName.trim()) {
+      setMenuError('메뉴명을 입력해주세요');
+      return;
+    }
+    const price = parseInt(menuPrice.replace(/\D/g, ''), 10) || 0;
+    if (price < 0) {
+      setMenuError('가격은 0 이상이어야 합니다');
+      return;
+    }
+
+    setIsMenuSubmitting(true);
+    setMenuError('');
+
+    try {
+      if (editingMenu) {
+        // 수정
+        const updated = await updateMenu(editingMenu.id, { name: menuName.trim(), price });
+        setMenus(menus.map((m) => (m.id === updated.id ? updated : m)));
+        toast.success('메뉴가 수정되었습니다');
+      } else {
+        // 추가
+        const created = await createMenu({ name: menuName.trim(), price });
+        setMenus([...menus, created]);
+        toast.success('메뉴가 추가되었습니다');
+      }
+      handleCloseMenuModal();
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.detail || '저장에 실패했습니다';
+      toast.error(errorMsg);
+      setMenuError(errorMsg);
+    } finally {
+      setIsMenuSubmitting(false);
+    }
+  };
+
+  // 메뉴 삭제
+  const handleDeleteMenu = async (menu: Menu) => {
+    if (!confirm(`"${menu.name}" 메뉴를 삭제하시겠습니까?`)) return;
+
+    try {
+      await deleteMenu(menu.id);
+      setMenus(menus.filter((m) => m.id !== menu.id));
+      toast.success('메뉴가 삭제되었습니다');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.detail || '삭제에 실패했습니다';
+      toast.error(errorMsg);
+    }
+  };
+
+  // 가격 포맷
+  const formatPrice = (value: string): string => {
+    const num = parseInt(value.replace(/\D/g, ''), 10);
+    return isNaN(num) ? '' : num.toLocaleString();
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-heading-2 text-gray-900 dark:text-white">설정</h1>
@@ -106,7 +213,7 @@ export default function Settings() {
       {/* 상점 정보 */}
       <Card>
         <h2 className="text-heading-3 text-gray-900 dark:text-white mb-4">상점 정보</h2>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Store className="w-5 h-5 text-primary-500" />
@@ -121,6 +228,89 @@ export default function Settings() {
             </Button>
           </div>
         </div>
+      </Card>
+
+      {/* 메뉴 관리 */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-heading-3 text-gray-900 dark:text-white">메뉴 관리</h2>
+          <Button variant="outline" size="sm" onClick={() => handleOpenMenuModal()}>
+            <Plus className="w-4 h-4 mr-1" />
+            추가
+          </Button>
+        </div>
+
+        {isMenusLoading ? (
+          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+            로딩 중...
+          </div>
+        ) : menus.length === 0 ? (
+          <div className="text-center py-6">
+            <Coffee className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              등록된 메뉴가 없습니다
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => handleOpenMenuModal()}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              첫 메뉴 추가하기
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {menus.map((menu) => (
+              <div
+                key={menu.id}
+                className={`flex items-center justify-between p-3 rounded-lg ${
+                  menu.is_active
+                    ? 'bg-gray-50 dark:bg-gray-800'
+                    : 'bg-gray-100 dark:bg-gray-900 opacity-60'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Coffee className="w-5 h-5 text-primary-500" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {menu.name}
+                      {!menu.is_active && (
+                        <span className="ml-2 text-xs text-gray-500">(비활성)</span>
+                      )}
+                    </p>
+                    <p className="text-sm text-primary-600 dark:text-primary-400">
+                      {menu.price.toLocaleString()}원
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenMenuModal(menu)}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-error-500 hover:text-error-600"
+                    onClick={() => handleDeleteMenu(menu)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+          <FileText size={12} />
+          메뉴는 고객에게 표시되며, 빠른 결제에 활용됩니다.
+        </p>
       </Card>
 
       {/* 디스플레이 설정 */}
@@ -256,6 +446,40 @@ export default function Settings() {
             </Button>
             <Button onClick={handleShopNameChange} isLoading={isShopNameSubmitting} className="flex-1">
               저장
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 메뉴 추가/수정 모달 */}
+      <Modal
+        isOpen={isMenuModalOpen}
+        onClose={handleCloseMenuModal}
+        title={editingMenu ? '메뉴 수정' : '메뉴 추가'}
+      >
+        <div className="space-y-4">
+          <Input
+            label="메뉴명"
+            placeholder="아메리카노"
+            value={menuName}
+            onChange={(e) => setMenuName(e.target.value)}
+            maxLength={100}
+          />
+          <Input
+            label="가격"
+            placeholder="4,500"
+            value={formatPrice(menuPrice)}
+            onChange={(e) => setMenuPrice(e.target.value.replace(/\D/g, ''))}
+          />
+
+          {menuError && <p className="text-error-500 text-sm">{menuError}</p>}
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" onClick={handleCloseMenuModal} className="flex-1">
+              취소
+            </Button>
+            <Button onClick={handleSaveMenu} isLoading={isMenuSubmitting} className="flex-1">
+              {editingMenu ? '수정' : '추가'}
             </Button>
           </div>
         </div>

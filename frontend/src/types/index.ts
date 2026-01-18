@@ -75,6 +75,43 @@ export interface PaymentMethodStats {
   percentage: number;
 }
 
+// 메뉴 타입
+export interface Menu {
+  id: string;
+  name: string;
+  price: number;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+}
+
+export interface MenuListResponse {
+  menus: Menu[];
+  total: number;
+}
+
+// 온보딩 타입
+export interface OnboardingStatus {
+  completed: boolean;
+  shop_name: string;
+  business_number: string | null;
+  menu_count: number;
+  customer_count: number;
+}
+
+export interface CustomerImportRow {
+  name: string;
+  phone_suffix: string;
+  balance: number;
+}
+
+export interface CustomerImportResponse {
+  total: number;
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
 // API 응답 타입
 export interface PaginatedResponse<T> {
   data: T[];

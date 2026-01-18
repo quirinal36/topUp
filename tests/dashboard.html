@@ -501,9 +501,9 @@
                 });
 
                 authToken = data.access_token;
-                shopId = data.shop.id;
+                shopId = data.shop_id;
 
-                log(`로그인 성공! 상점: ${data.shop.name}`, 'success');
+                log(`로그인 성공! 상점 ID: ${data.shop_id}`, 'success');
 
                 // 고객 목록 로드
                 await loadCustomers();
@@ -846,7 +846,7 @@
                 let inconsistencies = [];
 
                 for (const customer of customers) {
-                    const txData = await apiCall(`/api/transactions?customer_id=${customer.id}&page_size=1000`);
+                    const txData = await apiCall(`/api/transactions?customer_id=${customer.id}&page_size=100`);
 
                     let calculatedBalance = 0;
                     for (const tx of txData.transactions) {
