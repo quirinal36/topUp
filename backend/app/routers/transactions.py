@@ -5,7 +5,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 from datetime import datetime, date, timedelta
-import uuid
 
 from ..database import get_supabase_admin_client
 from ..routers.auth import get_current_shop
@@ -127,52 +126,49 @@ async def charge(
     request: ChargeRequest,
     shop_id: str = Depends(get_current_shop)
 ):
-    """선불 충전"""
-    # RLS 우회를 위해 admin 클라이언트 사용
+    """선불 충전 (원자적 트랜잭션)"""
     db = get_supabase_admin_client()
 
-    # 고객 확인
-    customer = db.table("customers").select("*").eq("id", request.customer_id).eq("shop_id", shop_id).maybe_single().execute()
+    # 원자적 충전 RPC 함수 호출 (Race Condition 방지)
+    result = db.rpc("charge_balance", {
+        "p_customer_id": request.customer_id,
+        "p_shop_id": shop_id,
+        "p_actual_payment": request.actual_payment,
+        "p_service_amount": request.service_amount,
+        "p_payment_method": request.payment_method.value,
+        "p_note": request.note
+    }).execute()
 
-    if not customer or not customer.data:
+    if not result.data:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="고객을 찾을 수 없습니다"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="충전 처리 중 오류가 발생했습니다"
         )
 
-    # 충전 금액 계산
-    total_amount = request.actual_payment + request.service_amount
+    rpc_result = result.data
 
-    # 거래 생성
-    transaction_id = str(uuid.uuid4())
-    transaction = {
-        "id": transaction_id,
-        "customer_id": request.customer_id,
-        "type": "CHARGE",
-        "amount": total_amount,
-        "actual_payment": request.actual_payment,
-        "service_amount": request.service_amount,
-        "payment_method": request.payment_method.value,
-        "note": request.note,
-        "created_at": datetime.now().isoformat()
-    }
+    # RPC 함수에서 반환된 에러 처리
+    if not rpc_result.get("success"):
+        error_code = rpc_result.get("error", "UNKNOWN_ERROR")
+        error_message = rpc_result.get("message", "알 수 없는 오류가 발생했습니다")
 
-    db.table("transactions").insert(transaction).execute()
-
-    # 잔액 업데이트
-    new_balance = customer.data["current_balance"] + total_amount
-    db.table("customers").update({"current_balance": new_balance}).eq("id", request.customer_id).execute()
+        if error_code == "CUSTOMER_NOT_FOUND":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_message)
+        elif error_code == "UNAUTHORIZED":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_message)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
 
     return TransactionResponse(
-        id=transaction_id,
-        customer_id=request.customer_id,
+        id=rpc_result["transaction_id"],
+        customer_id=rpc_result["customer_id"],
         type=TransactionType.CHARGE,
-        amount=total_amount,
-        actual_payment=request.actual_payment,
-        service_amount=request.service_amount,
+        amount=rpc_result["amount"],
+        actual_payment=rpc_result["actual_payment"],
+        service_amount=rpc_result["service_amount"],
         payment_method=request.payment_method,
-        note=request.note,
-        created_at=transaction["created_at"]
+        note=rpc_result.get("note"),
+        created_at=datetime.now().isoformat()
     )
 
 
@@ -181,53 +177,55 @@ async def deduct(
     request: DeductRequest,
     shop_id: str = Depends(get_current_shop)
 ):
-    """서비스 이용 (차감)"""
-    # RLS 우회를 위해 admin 클라이언트 사용
+    """서비스 이용 차감 (원자적 트랜잭션)"""
     db = get_supabase_admin_client()
 
-    # 고객 확인
-    customer = db.table("customers").select("*").eq("id", request.customer_id).eq("shop_id", shop_id).maybe_single().execute()
+    # 원자적 차감 RPC 함수 호출 (Race Condition 방지, 잔액 검증 원자적 수행)
+    result = db.rpc("deduct_balance", {
+        "p_customer_id": request.customer_id,
+        "p_shop_id": shop_id,
+        "p_amount": request.amount,
+        "p_note": request.note
+    }).execute()
 
-    if not customer or not customer.data:
+    if not result.data:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="고객을 찾을 수 없습니다"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="차감 처리 중 오류가 발생했습니다"
         )
 
-    # 잔액 확인
-    if customer.data["current_balance"] < request.amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"잔액이 부족합니다. 현재 잔액: {customer.data['current_balance']:,}원"
-        )
+    rpc_result = result.data
 
-    # 거래 생성
-    transaction_id = str(uuid.uuid4())
-    transaction = {
-        "id": transaction_id,
-        "customer_id": request.customer_id,
-        "type": "DEDUCT",
-        "amount": request.amount,
-        "note": request.note,
-        "created_at": datetime.now().isoformat()
-    }
+    # RPC 함수에서 반환된 에러 처리
+    if not rpc_result.get("success"):
+        error_code = rpc_result.get("error", "UNKNOWN_ERROR")
+        error_message = rpc_result.get("message", "알 수 없는 오류가 발생했습니다")
 
-    db.table("transactions").insert(transaction).execute()
-
-    # 잔액 업데이트
-    new_balance = customer.data["current_balance"] - request.amount
-    db.table("customers").update({"current_balance": new_balance}).eq("id", request.customer_id).execute()
+        if error_code == "CUSTOMER_NOT_FOUND":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_message)
+        elif error_code == "UNAUTHORIZED":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_message)
+        elif error_code == "INSUFFICIENT_BALANCE":
+            current_balance = rpc_result.get("current_balance", 0)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"잔액이 부족합니다. 현재 잔액: {current_balance:,}원"
+            )
+        elif error_code == "INVALID_AMOUNT":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
 
     return TransactionResponse(
-        id=transaction_id,
-        customer_id=request.customer_id,
+        id=rpc_result["transaction_id"],
+        customer_id=rpc_result["customer_id"],
         type=TransactionType.DEDUCT,
-        amount=request.amount,
+        amount=rpc_result["amount"],
         actual_payment=None,
         service_amount=None,
         payment_method=None,
-        note=request.note,
-        created_at=transaction["created_at"]
+        note=rpc_result.get("note"),
+        created_at=datetime.now().isoformat()
     )
 
 
@@ -236,67 +234,53 @@ async def cancel(
     request: CancelRequest,
     shop_id: str = Depends(get_current_shop)
 ):
-    """거래 취소 (PIN 검증 필요)"""
-    # RLS 우회를 위해 admin 클라이언트 사용
+    """거래 취소 (원자적 트랜잭션, PIN 검증 필요)"""
     db = get_supabase_admin_client()
 
-    # 원본 거래 조회
-    original = db.table("transactions").select("*").eq("id", request.transaction_id).maybe_single().execute()
+    # 취소 사유 포함한 노트 생성
+    cancel_note = f"거래 취소: {request.transaction_id}"
+    if request.reason:
+        cancel_note += f" - {request.reason}"
 
-    if not original or not original.data:
+    # 원자적 취소 RPC 함수 호출 (Race Condition 방지)
+    result = db.rpc("cancel_transaction", {
+        "p_transaction_id": request.transaction_id,
+        "p_shop_id": shop_id,
+        "p_note": cancel_note
+    }).execute()
+
+    if not result.data:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="거래를 찾을 수 없습니다"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="취소 처리 중 오류가 발생했습니다"
         )
 
-    # 이미 취소된 거래인지 확인
-    if original.data["type"] == "CANCEL":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="이미 취소된 거래입니다"
-        )
+    rpc_result = result.data
 
-    # 고객 및 상점 확인
-    customer = db.table("customers").select("*").eq("id", original.data["customer_id"]).eq("shop_id", shop_id).maybe_single().execute()
+    # RPC 함수에서 반환된 에러 처리
+    if not rpc_result.get("success"):
+        error_code = rpc_result.get("error", "UNKNOWN_ERROR")
+        error_message = rpc_result.get("message", "알 수 없는 오류가 발생했습니다")
 
-    if not customer or not customer.data:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="해당 거래에 대한 접근 권한이 없습니다"
-        )
-
-    # 취소 거래 생성
-    cancel_amount = original.data["amount"]
-    transaction_id = str(uuid.uuid4())
-    transaction = {
-        "id": transaction_id,
-        "customer_id": original.data["customer_id"],
-        "type": "CANCEL",
-        "amount": cancel_amount,
-        "note": f"거래 취소: {request.transaction_id}" + (f" - {request.reason}" if request.reason else ""),
-        "created_at": datetime.now().isoformat()
-    }
-
-    db.table("transactions").insert(transaction).execute()
-
-    # 잔액 복구/차감
-    if original.data["type"] == "CHARGE":
-        # 충전 취소 -> 잔액 차감
-        new_balance = customer.data["current_balance"] - cancel_amount
-    else:
-        # 차감 취소 -> 잔액 복구
-        new_balance = customer.data["current_balance"] + cancel_amount
-
-    db.table("customers").update({"current_balance": new_balance}).eq("id", original.data["customer_id"]).execute()
+        if error_code == "TRANSACTION_NOT_FOUND":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_message)
+        elif error_code == "UNAUTHORIZED":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_message)
+        elif error_code == "INVALID_CANCEL":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
+        elif error_code == "INSUFFICIENT_BALANCE_FOR_CANCEL":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
 
     return TransactionResponse(
-        id=transaction_id,
-        customer_id=original.data["customer_id"],
+        id=rpc_result["transaction_id"],
+        customer_id=rpc_result["customer_id"],
         type=TransactionType.CANCEL,
-        amount=cancel_amount,
+        amount=rpc_result["amount"],
         actual_payment=None,
         service_amount=None,
         payment_method=None,
-        note=transaction["note"],
-        created_at=transaction["created_at"]
+        note=rpc_result.get("note"),
+        created_at=datetime.now().isoformat()
     )

@@ -143,8 +143,8 @@ export default function Settings() {
             }`}
           >
             <span
-              className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${
-                darkMode ? 'translate-x-7' : 'translate-x-1'
+              className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                darkMode ? 'translate-x-6' : 'translate-x-0'
               }`}
             />
           </button>

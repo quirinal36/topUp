@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+    refresh_token_expire_days: int = 30  # Refresh token 만료 (30일)
+
+    # Rate Limiting 설정
+    login_rate_limit_minutes: int = 15  # 제한 시간 (분)
+    login_rate_limit_attempts: int = 5  # 최대 시도 횟수
 
     # 앱 설정
     app_env: str = "development"
