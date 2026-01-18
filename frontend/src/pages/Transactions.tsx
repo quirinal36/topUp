@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Search,
   Calendar,
@@ -10,6 +10,7 @@ import {
   Undo2,
   Loader2,
   RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -40,6 +41,12 @@ export default function Transactions() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const { isPinModalOpen, closePinModal, withPinVerification, handlePinVerified } = usePinVerify();
+
+  // 미래 날짜 경고 체크
+  const isFutureDate = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return filters.endDate > today;
+  }, [filters.endDate]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원';
@@ -188,6 +195,14 @@ export default function Transactions() {
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
+
+          {/* 미래 날짜 경고 */}
+          {isFutureDate && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-warning-50 dark:bg-warning-900/20 text-warning-700 dark:text-warning-400 rounded-button text-sm">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>종료일이 오늘 이후입니다. 미래 날짜의 거래가 포함될 수 있습니다.</span>
+            </div>
+          )}
         </div>
       </Card>
 

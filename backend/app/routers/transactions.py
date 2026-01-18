@@ -238,9 +238,9 @@ async def cancel(
     db = get_supabase_admin_client()
 
     # 취소 사유 포함한 노트 생성
-    cancel_note = f"거래 취소: {request.transaction_id}"
+    cancel_note = "거래 취소"
     if request.reason:
-        cancel_note += f" - {request.reason}"
+        cancel_note += f": {request.reason}"
 
     # 원자적 취소 RPC 함수 호출 (Race Condition 방지)
     result = db.rpc("cancel_transaction", {
