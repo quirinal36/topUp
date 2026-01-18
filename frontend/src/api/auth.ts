@@ -60,3 +60,41 @@ export const updateShop = async (name: string): Promise<{
   const response = await apiClient.put('/auth/me', { name });
   return response.data;
 };
+
+// ========== 비밀번호 재설정 ==========
+
+// 비밀번호 재설정 인증번호 발송 요청
+export const requestPasswordReset = async (email: string): Promise<{
+  message: string;
+  expires_in?: number;
+}> => {
+  const response = await apiClient.post('/auth/password-reset/request', { email });
+  return response.data;
+};
+
+// 인증번호 검증
+export const verifyResetCode = async (email: string, code: string): Promise<{
+  verified: boolean;
+  reset_token?: string;
+  remaining_attempts?: number;
+  locked_until?: string;
+}> => {
+  const response = await apiClient.post('/auth/password-reset/verify', { email, code });
+  return response.data;
+};
+
+// 새 비밀번호 설정
+export const confirmPasswordReset = async (
+  email: string,
+  resetToken: string,
+  newPassword: string
+): Promise<{
+  message: string;
+}> => {
+  const response = await apiClient.post('/auth/password-reset/confirm', {
+    email,
+    reset_token: resetToken,
+    new_password: newPassword,
+  });
+  return response.data;
+};

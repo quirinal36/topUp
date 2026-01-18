@@ -45,7 +45,8 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-secondary-100 dark:from-[#1a1412] dark:to-[#2d2420] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-secondary-100 dark:from-[#1a1412] dark:to-[#2d2420] overflow-auto">
+      <div className="min-h-screen flex items-center justify-center p-4 pb-[280px]">
       <div className="w-full max-w-sm">
         {/* 로고 */}
         <div className="text-center mb-8">
@@ -115,6 +116,16 @@ export default function Login() {
               <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
             )}
 
+            {/* 비밀번호 찾기 링크 */}
+            <div className="text-right">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+              >
+                비밀번호를 잊으셨나요?
+              </Link>
+            </div>
+
             {/* 로그인 버튼 */}
             <button
               type="submit"
@@ -143,6 +154,7 @@ export default function Login() {
         <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">
           로그인 시 서비스 이용약관에 동의하게 됩니다
         </p>
+      </div>
       </div>
     </div>
   );
