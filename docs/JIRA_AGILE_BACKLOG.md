@@ -19,7 +19,7 @@
 | TOPUP-E6 | 보안 강화 (Security Hardening) | To Do |
 | TOPUP-E7 | 기능 보완 (Feature Enhancement) | To Do |
 | TOPUP-E8 | 외부 연동 (External Integration) | To Do |
-| TOPUP-E9 | 품질 보증 (Quality Assurance) | To Do |
+| TOPUP-E9 | 품질 보증 (Quality Assurance) | In Progress |
 | TOPUP-E10 | 배포 및 운영 (Deployment & Operations) | To Do |
 
 ---
@@ -37,6 +37,8 @@
 | TOPUP-5 | Story | PIN 설정 및 변경 API | Done | 3 |
 | TOPUP-6 | Story | PIN 검증 API (5회 실패 시 1분 잠금) | Done | 3 |
 | TOPUP-7 | Story | PIN 재설정 (소셜 재인증) | Done | 2 |
+| TOPUP-8 | Story | 비밀번호 재설정 이메일 발송 (Resend API) | Done | 5 |
+| TOPUP-9 | Story | 비밀번호 재설정 인증번호 검증 | Done | 3 |
 
 ---
 
@@ -212,6 +214,9 @@
 | TOPUP-80 | Story | 백엔드 단위 테스트 작성 | pytest 기반 API 테스트 | - 인증 API 테스트<br>- 고객 CRUD 테스트<br>- 거래 API 테스트<br>- 커버리지 80% 이상 | 8 | Medium |
 | TOPUP-81 | Story | 프론트엔드 컴포넌트 테스트 | Vitest + React Testing Library | - 주요 컴포넌트 테스트<br>- 커스텀 훅 테스트<br>- 스냅샷 테스트 | 5 | Medium |
 | TOPUP-82 | Story | E2E 테스트 작성 | Playwright 기반 통합 테스트 | - 로그인 플로우 테스트<br>- 고객 등록/충전/차감 시나리오<br>- 크로스 브라우저 테스트 | 8 | Low |
+| **TOPUP-83** | **Story** | **Race Condition 테스트 및 수정** | **동시성 문제 검증 및 수정** | - 동시 충전/차감 테스트<br>- 잔액 불일치 0건<br>- 원자적 트랜잭션 적용 | **8** | **High** |
+| **TOPUP-84** | **Story** | **부하 테스트 인프라 구축** | **Locust 기반 부하 테스트** | - 10만건 데이터 처리<br>- P95 < 500ms<br>- 오류율 < 1% | **5** | **High** |
+| **TOPUP-85** | **Story** | **데이터베이스 성능 최적화** | **인덱스 및 제약조건 추가** | - 12개 인덱스 추가<br>- CHECK 제약조건<br>- 쿼리 성능 개선 | **3** | **High** |
 
 **Tasks for TOPUP-80 (백엔드 단위 테스트):**
 
@@ -222,6 +227,35 @@
 | TOPUP-80-3 | 인증 API 테스트 | auth_service 테스트 케이스 |
 | TOPUP-80-4 | 고객 API 테스트 | customers router 테스트 케이스 |
 | TOPUP-80-5 | 거래 API 테스트 | transactions router 테스트 케이스 |
+
+**Tasks for TOPUP-83 (Race Condition 테스트 및 수정) - Done:**
+
+| Task Key | Summary | Description | Status |
+|----------|---------|-------------|--------|
+| TOPUP-83-1 | Race Condition 테스트 코드 작성 | pytest-asyncio 기반 동시성 테스트 | ✅ Done |
+| TOPUP-83-2 | 원자적 충전 RPC 함수 | charge_balance PostgreSQL 함수 | ✅ Done |
+| TOPUP-83-3 | 원자적 차감 RPC 함수 | deduct_balance PostgreSQL 함수 | ✅ Done |
+| TOPUP-83-4 | 원자적 취소 RPC 함수 | cancel_transaction PostgreSQL 함수 | ✅ Done |
+| TOPUP-83-5 | 원자적 PIN 검증 RPC 함수 | verify_pin_atomic PostgreSQL 함수 | ✅ Done |
+| TOPUP-83-6 | transactions.py RPC 호출 적용 | 기존 코드를 RPC 호출로 변경 | ✅ Done |
+| TOPUP-83-7 | pin_service.py RPC 호출 적용 | PIN 검증 로직 RPC 적용 | ✅ Done |
+
+**Tasks for TOPUP-84 (부하 테스트 인프라 구축) - Done:**
+
+| Task Key | Summary | Description | Status |
+|----------|---------|-------------|--------|
+| TOPUP-84-1 | Locust 테스트 스크립트 작성 | locustfile.py 부하 테스트 시나리오 | ✅ Done |
+| TOPUP-84-2 | 테스트 데이터 생성기 | generate_test_data.py 대량 데이터 생성 | ✅ Done |
+| TOPUP-84-3 | 테스트 대시보드 UI | dashboard.html 웹 기반 테스트 UI | ✅ Done |
+| TOPUP-84-4 | 테스트 환경 설정 | .env.example, requirements.txt | ✅ Done |
+| TOPUP-84-5 | 테스트 가이드 문서 | tests/README.md 사용법 문서 | ✅ Done |
+
+**Tasks for TOPUP-85 (데이터베이스 성능 최적화) - Done:**
+
+| Task Key | Summary | Description | Status |
+|----------|---------|-------------|--------|
+| TOPUP-85-1 | 성능 인덱스 추가 | 12개 인덱스 마이그레이션 | ✅ Done |
+| TOPUP-85-2 | 데이터 무결성 제약조건 | CHECK 제약조건 추가 | ✅ Done |
 
 ---
 
@@ -337,4 +371,4 @@
 
 ---
 
-**최종 수정일:** 2025-12-31
+**최종 수정일:** 2026-01-18

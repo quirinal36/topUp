@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 from jose import jwt, JWTError
 import bcrypt
+import resend
 from supabase import Client
 
 from ..config import get_settings
@@ -340,16 +341,70 @@ class AuthService:
 
     async def _send_reset_email(self, email: str, code: str):
         """
-        인증번호 이메일 발송
-        TODO: Supabase Edge Function 또는 외부 이메일 서비스 연동
-        현재는 로그에만 출력 (개발/테스트용)
+        Resend API를 사용하여 인증번호 이메일 발송
         """
-        logger.info(f"[EMAIL] 비밀번호 재설정 인증번호 발송: {email} -> {code}")
-        # 실제 구현 시 아래 중 하나 선택:
-        # 1. Supabase Edge Function 호출
-        # 2. SendGrid API 호출
-        # 3. AWS SES 호출
-        # 4. SMTP 직접 발송
+        masked_email = _mask_email(email)
+
+        # Resend API 키가 설정되지 않은 경우 로그만 출력 (개발용)
+        if not settings.resend_api_key:
+            logger.warning(f"[EMAIL] Resend API 키 미설정 - 인증번호 로그 출력: {email} -> {code}")
+            return
+
+        try:
+            resend.api_key = settings.resend_api_key
+
+            # 이메일 HTML 템플릿
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
+                    .header {{ text-align: center; margin-bottom: 30px; }}
+                    .code-box {{ background: #f8f9fa; border-radius: 12px; padding: 30px; text-align: center; margin: 30px 0; }}
+                    .code {{ font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #2563eb; }}
+                    .warning {{ color: #6b7280; font-size: 14px; margin-top: 20px; }}
+                    .footer {{ text-align: center; color: #9ca3af; font-size: 12px; margin-top: 40px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>비밀번호 재설정</h1>
+                    </div>
+                    <p>안녕하세요,</p>
+                    <p>비밀번호 재설정을 요청하셨습니다. 아래 인증번호를 입력해주세요.</p>
+                    <div class="code-box">
+                        <div class="code">{code}</div>
+                    </div>
+                    <p class="warning">
+                        ⚠️ 이 인증번호는 <strong>10분</strong> 후에 만료됩니다.<br>
+                        본인이 요청하지 않았다면 이 이메일을 무시해주세요.
+                    </p>
+                    <div class="footer">
+                        <p>{settings.resend_from_name}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Resend API 호출
+            params = {
+                "from": f"{settings.resend_from_name} <{settings.resend_from_email}>",
+                "to": [email],
+                "subject": f"[{settings.resend_from_name}] 비밀번호 재설정 인증번호: {code}",
+                "html": html_content
+            }
+
+            response = resend.Emails.send(params)
+            logger.info(f"[EMAIL] 이메일 발송 성공 - email: {masked_email}, id: {response.get('id', 'unknown')}")
+
+        except Exception as e:
+            logger.error(f"[EMAIL] 이메일 발송 실패 - email: {masked_email}, error: {str(e)}")
+            # 이메일 발송 실패해도 전체 프로세스는 계속 진행 (보안상 사용자에게 실패 알리지 않음)
 
     async def verify_reset_code(
         self, email: str, code: str

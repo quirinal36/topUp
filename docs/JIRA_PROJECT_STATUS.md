@@ -23,6 +23,7 @@
 | | Uvicorn | 0.27.0 |
 | **Database** | Supabase (PostgreSQL) | 2.3.4 |
 | **인증** | JWT + OAuth 2.0 | - |
+| **이메일** | Resend | 2.0.0 |
 
 ---
 
@@ -39,6 +40,9 @@
 | **PIN 보안** | PIN 설정/변경 | ✅ 완료 | 4자리, bcrypt 해시 |
 | | PIN 검증 API | ✅ 완료 | 5회 실패시 1분 잠금 |
 | | PIN 재설정 | ✅ 완료 | 소셜 재인증 후 재설정 |
+| **비밀번호 재설정** | 이메일 인증번호 발송 | ✅ 완료 | Resend API 연동 |
+| | 인증번호 검증 | ✅ 완료 | 6자리, 10분 만료, 5회 제한 |
+| | 새 비밀번호 설정 | ✅ 완료 | JWT 토큰 기반 검증 |
 
 ### 2.2 고객 관리
 
@@ -206,6 +210,9 @@
 | POST | `/pin/change` | PIN 변경 |
 | POST | `/pin/reset` | PIN 재설정 |
 | POST | `/link/{provider}` | 소셜 계정 추가 연동 |
+| POST | `/password-reset/request` | 비밀번호 재설정 요청 (이메일 발송) |
+| POST | `/password-reset/verify` | 인증번호 검증 |
+| POST | `/password-reset/confirm` | 새 비밀번호 설정 |
 | GET | `/me` | 현재 상점 정보 |
 | GET | `/social-accounts` | 연동된 소셜 계정 목록 |
 
@@ -257,10 +264,30 @@
 
 | 구분 | 상태 | 비고 |
 |------|------|------|
-| 단위 테스트 | ❌ 미작성 | pytest 설정 필요 |
+| 단위 테스트 | ⚠️ 부분완료 | Race Condition 테스트 구현 |
+| 부하 테스트 | ✅ 인프라 구축 | Locust 기반 부하 테스트 |
 | 통합 테스트 | ❌ 미작성 | API 테스트 필요 |
 | E2E 테스트 | ❌ 미작성 | Playwright/Cypress 권장 |
 | 수동 테스트 | ✅ 진행중 | 기능별 수동 검증 |
+
+### 7.1 테스트 인프라 (2026-01-18 추가)
+
+| 구성 요소 | 파일 | 설명 |
+|-----------|------|------|
+| Race Condition 테스트 | `tests/race_condition_tests/test_balance_race.py` | 동시성 검증 |
+| 부하 테스트 | `tests/load_tests/locustfile.py` | Locust 부하 테스트 |
+| 데이터 생성기 | `tests/load_tests/generate_test_data.py` | 10만건+ 데이터 생성 |
+| 테스트 대시보드 | `tests/dashboard.html` | 웹 기반 테스트 UI |
+| 테스트 가이드 | `tests/README.md` | 사용법 문서 |
+
+### 7.2 보안 강화 (2026-01-18 추가)
+
+| 항목 | 상태 | 설명 |
+|------|------|------|
+| Race Condition 방지 | ✅ 완료 | 원자적 RPC 함수 적용 |
+| DB 인덱스 최적화 | ✅ 완료 | 12개 인덱스 추가 |
+| 데이터 무결성 | ✅ 완료 | CHECK 제약조건 추가 |
+| PIN 보안 강화 | ✅ 완료 | 원자적 검증 로직 |
 
 ---
 
@@ -295,4 +322,4 @@
 
 ---
 
-**최종 수정일:** 2025-12-30
+**최종 수정일:** 2026-01-18
