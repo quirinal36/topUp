@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { User, Phone } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Customer } from '../../types';
@@ -10,7 +11,7 @@ interface CustomerCardProps {
   selected?: boolean;
 }
 
-export default function CustomerCard({ customer, onClick, variant = 'default', selected = false }: CustomerCardProps) {
+const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, onClick, variant = 'default', selected = false }, ref) => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원';
   };
@@ -19,6 +20,7 @@ export default function CustomerCard({ customer, onClick, variant = 'default', s
   if (variant === 'pos') {
     return (
       <div
+        ref={ref}
         onClick={onClick}
         className={clsx(
           'min-h-pos-xl p-4 rounded-xl cursor-pointer transition-all duration-150',
@@ -104,4 +106,8 @@ export default function CustomerCard({ customer, onClick, variant = 'default', s
       </div>
     </Card>
   );
-}
+});
+
+CustomerCard.displayName = 'CustomerCard';
+
+export default CustomerCard;
