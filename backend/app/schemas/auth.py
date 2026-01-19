@@ -2,6 +2,7 @@
 인증 관련 스키마
 """
 import re
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
@@ -24,28 +25,38 @@ class RefreshTokenRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     """로그인 요청"""
-    email: str = Field(..., description="이메일")
+    username: str = Field(..., min_length=4, max_length=20, description="아이디")
     password: str = Field(..., min_length=8, description="비밀번호")
 
-    @field_validator('email')
+    @field_validator('username')
     @classmethod
-    def validate_email(cls, v: str) -> str:
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        if not re.match(email_pattern, v):
-            raise ValueError('올바른 이메일 형식이 아닙니다')
+    def validate_username(cls, v: str) -> str:
+        if not re.match(r'^[a-z0-9]+$', v):
+            raise ValueError('아이디는 영문 소문자와 숫자만 사용할 수 있습니다')
         return v.lower()
 
 
 class RegisterRequest(BaseModel):
     """회원가입 요청"""
-    email: str = Field(..., description="이메일")
+    username: str = Field(..., min_length=4, max_length=20, description="아이디 (영문 소문자 + 숫자)")
     password: str = Field(..., min_length=8, description="비밀번호 (8자 이상)")
+    email: Optional[str] = Field(None, description="비밀번호 재설정용 이메일 (선택)")
     shop_name: str = Field(..., min_length=1, max_length=100, description="상점명")
+    verification_token: str = Field(..., description="본인인증 완료 토큰")
     turnstile_token: Optional[str] = Field(None, description="Cloudflare Turnstile 토큰")
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        if not re.match(r'^[a-z0-9]+$', v):
+            raise ValueError('아이디는 영문 소문자와 숫자만 사용할 수 있습니다')
+        return v.lower()
 
     @field_validator('email')
     @classmethod
-    def validate_email(cls, v: str) -> str:
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == '':
+            return None
         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_pattern, v):
             raise ValueError('올바른 이메일 형식이 아닙니다')
@@ -65,10 +76,52 @@ class ShopResponse(BaseModel):
     """상점 응답"""
     id: str
     name: str
+    username: Optional[str] = None
     email: Optional[str] = None
     business_number: Optional[str] = None
     onboarding_completed: bool = False
     created_at: str
+
+
+# ========== 아이디 중복 확인 ==========
+
+class UsernameCheckRequest(BaseModel):
+    """아이디 중복 확인 요청"""
+    username: str = Field(..., min_length=4, max_length=20, description="확인할 아이디")
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        if not re.match(r'^[a-z0-9]+$', v):
+            raise ValueError('아이디는 영문 소문자와 숫자만 사용할 수 있습니다')
+        return v.lower()
+
+
+class UsernameCheckResponse(BaseModel):
+    """아이디 중복 확인 응답"""
+    available: bool
+    message: str
+
+
+# ========== NICE 본인인증 ==========
+
+class NiceAuthStartResponse(BaseModel):
+    """본인인증 시작 응답"""
+    request_id: str
+    enc_data: str  # NICE 요청 데이터 (암호화)
+    mock_mode: bool = False  # 모킹 모드 여부
+
+
+class NiceAuthCompleteRequest(BaseModel):
+    """본인인증 완료 요청"""
+    request_id: str
+    enc_data: str  # NICE 응답 데이터
+
+
+class NiceAuthCompleteResponse(BaseModel):
+    """본인인증 완료 응답"""
+    verification_token: str  # 10분 유효 임시 토큰
+    expires_at: datetime
 
 
 class PinVerifyRequest(BaseModel):

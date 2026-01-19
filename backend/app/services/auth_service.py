@@ -1,6 +1,6 @@
 """
 인증 서비스
-이메일/비밀번호 인증, JWT 토큰 관리 등을 담당
+아이디/비밀번호 인증, JWT 토큰 관리, NICE 본인인증 등을 담당
 """
 import logging
 import os
@@ -33,6 +33,10 @@ def _mask_email(email: str) -> str:
     if len(local) <= 2:
         return f"**@{domain}"
     return f"{local[0]}***{local[-1]}@{domain}"
+
+
+# 본인인증 토큰 유효 시간 (10분)
+VERIFICATION_TOKEN_EXPIRE_MINUTES = 10
 
 
 def _generate_random_pin() -> str:
@@ -173,23 +177,57 @@ class AuthService:
             "expires_in": settings.access_token_expire_minutes * 60
         }
 
-    async def login(self, email: str, password: str) -> Optional[Dict[str, Any]]:
-        """이메일/비밀번호 로그인"""
-        masked_email = _mask_email(email)
-        logger.debug(f"[LOGIN] 로그인 시도 - email: {masked_email}")
+    def create_verification_token(self, ci: str) -> Tuple[str, datetime]:
+        """
+        본인인증 완료 후 임시 토큰 생성 (CI 포함, 10분 유효)
+        Returns: (token, expires_at)
+        """
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(minutes=VERIFICATION_TOKEN_EXPIRE_MINUTES)
+        to_encode = {
+            "ci": ci,
+            "type": "verification",
+            "exp": expires_at,
+            "iat": now
+        }
+        token = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        return token, expires_at
 
-        # 이메일로 상점 조회 (admin 클라이언트로 RLS 우회)
-        result = self.admin_db.table("shops").select("*").eq("email", email.lower()).execute()
+    def verify_verification_token(self, token: str) -> Optional[str]:
+        """
+        본인인증 토큰 검증 후 CI 반환
+        Returns: CI 값 또는 None (유효하지 않은 경우)
+        """
+        try:
+            payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+            token_type: str = payload.get("type")
+            ci: str = payload.get("ci")
+
+            if token_type != "verification" or not ci:
+                logger.debug("[AUTH] 유효하지 않은 verification 토큰 타입")
+                return None
+
+            return ci
+        except JWTError as e:
+            logger.debug(f"[AUTH] verification 토큰 검증 실패: {str(e)}")
+            return None
+
+    async def login(self, username: str, password: str) -> Optional[Dict[str, Any]]:
+        """아이디/비밀번호 로그인"""
+        logger.debug(f"[LOGIN] 로그인 시도 - username: {username}")
+
+        # 아이디로 상점 조회 (admin 클라이언트로 RLS 우회)
+        result = self.admin_db.table("shops").select("*").eq("username", username.lower()).execute()
 
         if not result.data:
-            logger.debug(f"[LOGIN] 이메일을 찾을 수 없음: {masked_email}")
+            logger.debug(f"[LOGIN] 아이디를 찾을 수 없음: {username}")
             return None
 
         shop = result.data[0]
 
         # 비밀번호 검증
         if not shop.get("password_hash") or not self.verify_password(password, shop["password_hash"]):
-            logger.debug(f"[LOGIN] 비밀번호 불일치: {masked_email}")
+            logger.debug(f"[LOGIN] 비밀번호 불일치: {username}")
             return None
 
         logger.info(f"[LOGIN] 로그인 성공 - shop_id: {shop['id'][:8]}...")
@@ -206,16 +244,43 @@ class AuthService:
             "shop_id": shop["id"]
         }
 
-    async def register(self, email: str, password: str, shop_name: str) -> Dict[str, Any]:
-        """신규 회원가입"""
-        masked_email = _mask_email(email)
-        logger.debug(f"[REGISTER] 회원가입 시도 - email: {masked_email}")
+    async def register(
+        self,
+        username: str,
+        password: str,
+        shop_name: str,
+        verification_token: str,
+        email: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        신규 회원가입 (본인인증 필수)
 
-        # 이메일 중복 체크 (admin 클라이언트로 RLS 우회)
-        existing = self.admin_db.table("shops").select("id").eq("email", email.lower()).execute()
+        Args:
+            username: 로그인 아이디
+            password: 비밀번호
+            shop_name: 상점명
+            verification_token: 본인인증 완료 토큰 (CI 포함)
+            email: 비밀번호 재설정용 이메일 (선택)
+        """
+        logger.debug(f"[REGISTER] 회원가입 시도 - username: {username}")
+
+        # 본인인증 토큰 검증
+        ci = self.verify_verification_token(verification_token)
+        if not ci:
+            logger.warning(f"[REGISTER] 유효하지 않은 본인인증 토큰 - username: {username}")
+            raise ValueError("본인인증이 만료되었습니다. 다시 인증해주세요.")
+
+        # CI 중복 확인 (이미 가입된 사용자인지)
+        existing_ci = self.admin_db.table("shops").select("id").eq("ci", ci).execute()
+        if existing_ci.data:
+            logger.warning(f"[REGISTER] CI 중복 - username: {username}")
+            raise ValueError("이미 가입된 정보입니다. 기존 계정으로 로그인해주세요.")
+
+        # 아이디 중복 체크 (admin 클라이언트로 RLS 우회)
+        existing = self.admin_db.table("shops").select("id").eq("username", username.lower()).execute()
         if existing.data:
-            logger.debug(f"[REGISTER] 이메일 중복: {masked_email}")
-            raise ValueError("이미 사용 중인 이메일입니다")
+            logger.debug(f"[REGISTER] 아이디 중복: {username}")
+            raise ValueError("이미 사용 중인 아이디입니다")
 
         # 상점 생성
         shop_id = str(uuid.uuid4())
@@ -226,16 +291,23 @@ class AuthService:
         initial_pin_hash = self.pin_service.hash_pin(initial_pin)
 
         now = datetime.now(timezone.utc)
-        self.admin_db.table("shops").insert({
+        shop_data = {
             "id": shop_id,
-            "email": email.lower(),
+            "username": username.lower(),
             "password_hash": password_hash,
             "name": shop_name,
+            "ci": ci,
             "pin_hash": initial_pin_hash,
             "pin_change_required": True,  # 첫 로그인 시 PIN 변경 필요
             "created_at": now.isoformat(),
             "updated_at": now.isoformat()
-        }).execute()
+        }
+
+        # 이메일이 제공된 경우 추가
+        if email:
+            shop_data["email"] = email.lower()
+
+        self.admin_db.table("shops").insert(shop_data).execute()
 
         logger.info(f"[REGISTER] 회원가입 성공 - shop_id: {shop_id[:8]}...")
 

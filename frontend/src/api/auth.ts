@@ -1,23 +1,58 @@
 import apiClient from './client';
 import { LoginResponse } from '../types';
 
-// 이메일/비밀번호 로그인
-export const login = async (email: string, password: string): Promise<LoginResponse> => {
-  const response = await apiClient.post('/auth/login', { email, password });
+// 아이디/비밀번호 로그인
+export const login = async (username: string, password: string): Promise<LoginResponse> => {
+  const response = await apiClient.post('/auth/login', { username, password });
   return response.data;
 };
 
-// 회원가입
+// 아이디 중복 확인
+export const checkUsername = async (username: string): Promise<{
+  available: boolean;
+  message: string;
+}> => {
+  const response = await apiClient.post('/auth/check-username', { username });
+  return response.data;
+};
+
+// NICE 본인인증 시작
+export const startNiceAuth = async (): Promise<{
+  request_id: string;
+  enc_data: string;
+  mock_mode: boolean;
+}> => {
+  const response = await apiClient.post('/auth/nice/start');
+  return response.data;
+};
+
+// NICE 본인인증 완료
+export const completeNiceAuth = async (requestId: string, encData: string): Promise<{
+  verification_token: string;
+  expires_at: string;
+}> => {
+  const response = await apiClient.post('/auth/nice/complete', {
+    request_id: requestId,
+    enc_data: encData,
+  });
+  return response.data;
+};
+
+// 회원가입 (본인인증 필수)
 export const register = async (
-  email: string,
+  username: string,
   password: string,
   shopName: string,
+  verificationToken: string,
+  email?: string,
   turnstileToken?: string
 ): Promise<LoginResponse> => {
   const response = await apiClient.post('/auth/register', {
-    email,
+    username,
     password,
     shop_name: shopName,
+    verification_token: verificationToken,
+    email: email || null,
     turnstile_token: turnstileToken,
   });
   return response.data;
@@ -45,6 +80,7 @@ export const changePin = async (currentPin: string, newPin: string): Promise<voi
 export const getCurrentShop = async (): Promise<{
   id: string;
   name: string;
+  username?: string;
   email?: string;
   business_number?: string;
   onboarding_completed: boolean;

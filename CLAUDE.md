@@ -69,14 +69,21 @@ frontend/src/
 - All data is shop-scoped (multi-tenant design)
 
 ### Authentication Flow
-1. OAuth login via Naver/Kakao → backend handles token exchange
-2. Backend issues JWT for session
-3. Frontend stores token in Zustand (persisted)
+1. Username/password login with NICE identity verification on registration
+2. Backend issues JWT for session (7-day expiry)
+3. Frontend stores token in Zustand (persisted to localStorage)
 4. Protected routes check token, redirect to login if missing
+5. PIN verification required for sensitive operations (charge/deduct)
+
+### Registration Flow (4-step)
+1. Account info: Username (4-20 chars, lowercase + numbers) + password
+2. Shop info: Shop name + optional email (for password reset)
+3. Identity verification: NICE 본인인증 (CI stored for duplicate prevention)
+4. Final: Cloudflare Turnstile bot protection + registration complete
 
 ## Database (Supabase)
 
-Tables: `shops`, `social_accounts`, `customers`, `transactions`
+Tables: `shops`, `customers`, `transactions`, `menus`, `subscriptions`, `payment_history`, `token_blacklist`
 
 All customer/transaction data is scoped by `shop_id` for multi-tenant isolation.
 
@@ -85,13 +92,17 @@ All customer/transaction data is scoped by `shop_id` for multi-tenant isolation.
 Backend requires (in `.env`):
 - `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_KEY`
 - `JWT_SECRET_KEY`
-- `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`
-- `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`
-- `FRONTEND_URL`
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME` (email service)
+- `TURNSTILE_SECRET_KEY` (bot protection, optional for dev)
+- `NICE_MODE`, `NICE_SITE_CODE`, `NICE_SITE_PW` (identity verification)
+- `FRONTEND_URL`, `CORS_ORIGINS`
+
+Frontend requires (in `.env`):
+- `VITE_TURNSTILE_SITE_KEY` (Cloudflare Turnstile)
 
 ## API Routes
 
-- `/api/auth/*` - Social login, PIN management, account linking
+- `/api/auth/*` - Username/password login, registration with NICE verification, PIN management
 - `/api/customers/*` - Customer CRUD, balance tracking
 - `/api/transactions/*` - Charge/deduct operations, cancellation
 - `/api/dashboard/*` - Analytics and summaries

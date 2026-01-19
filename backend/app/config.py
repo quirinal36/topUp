@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # Cloudflare Turnstile 설정 (봇 방지)
     turnstile_secret_key: str = ""  # 빈 문자열이면 검증 비활성화 (개발용)
 
+    # NICE 본인인증 설정
+    nice_mode: str = "mock"  # mock | production
+    nice_site_code: str = ""  # NICE 사이트 코드 (프로덕션용)
+    nice_site_pw: str = ""  # NICE 사이트 비밀번호 (프로덕션용)
+
     @property
     def cors_origins_list(self) -> List[str]:
         """CORS 허용 도메인 리스트 반환"""

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { login as apiLogin } from '../api/auth';
 
@@ -8,7 +8,7 @@ export default function Login() {
   const navigate = useNavigate();
   const { isAuthenticated, login } = useAuthStore();
 
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -27,13 +27,13 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const response = await apiLogin(email, password);
+      const response = await apiLogin(username, password);
       await login(response.access_token);
       navigate('/');
     } catch (err: unknown) {
       const error = err as { response?: { status?: number; data?: { detail?: string } } };
       if (error.response?.status === 401) {
-        setError('이메일 또는 비밀번호가 올바르지 않습니다');
+        setError('아이디 또는 비밀번호가 올바르지 않습니다');
       } else if (error.response?.data?.detail) {
         setError(error.response.data.detail);
       } else {
@@ -66,20 +66,22 @@ export default function Login() {
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* 이메일 입력 */}
+            {/* 아이디 입력 */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                이메일
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                아이디
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="cafe@example.com"
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  placeholder="아이디를 입력하세요"
                   required
+                  minLength={4}
+                  maxLength={20}
                   className="w-full pl-10 pr-4 py-3 rounded-button border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1a1412] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
