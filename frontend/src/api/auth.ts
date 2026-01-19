@@ -11,12 +11,14 @@ export const login = async (email: string, password: string): Promise<LoginRespo
 export const register = async (
   email: string,
   password: string,
-  shopName: string
+  shopName: string,
+  turnstileToken?: string
 ): Promise<LoginResponse> => {
   const response = await apiClient.post('/auth/register', {
     email,
     password,
     shop_name: shopName,
+    turnstile_token: turnstileToken,
   });
   return response.data;
 };

@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Store } from 'lucide-react';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { useAuthStore } from '../stores/authStore';
 import { register as apiRegister } from '../api/auth';
+
+// Cloudflare Turnstile Site Key (환경변수에서 로드)
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -16,6 +20,8 @@ export default function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   // 이미 로그인되어 있으면 대시보드로 이동
   useEffect(() => {
@@ -54,10 +60,16 @@ export default function Register() {
       return;
     }
 
+    // Turnstile 검증 (Site Key가 설정된 경우에만)
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError('보안 검증을 완료해주세요');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const response = await apiRegister(email, password, shopName);
+      const response = await apiRegister(email, password, shopName, turnstileToken || undefined);
       await login(response.access_token);
       navigate('/');
     } catch (err: unknown) {
@@ -69,6 +81,9 @@ export default function Register() {
       } else {
         setError('회원가입 중 오류가 발생했습니다');
       }
+      // Turnstile 리셋 (실패 시 재시도 가능하도록)
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -189,6 +204,26 @@ export default function Register() {
                 />
               </div>
             </div>
+
+            {/* Turnstile 봇 방지 */}
+            {TURNSTILE_SITE_KEY && (
+              <div className="flex justify-center">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={TURNSTILE_SITE_KEY}
+                  onSuccess={(token) => setTurnstileToken(token)}
+                  onError={() => {
+                    setTurnstileToken(null);
+                    setError('보안 검증에 실패했습니다. 페이지를 새로고침해주세요.');
+                  }}
+                  onExpire={() => setTurnstileToken(null)}
+                  options={{
+                    theme: 'auto',
+                    size: 'normal',
+                  }}
+                />
+              </div>
+            )}
 
             {/* 에러 메시지 */}
             {error && (

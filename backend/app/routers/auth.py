@@ -4,6 +4,7 @@
 """
 import logging
 import os
+import httpx
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple
 from collections import defaultdict
@@ -94,6 +95,49 @@ router = APIRouter(prefix="/api/auth", tags=["인증"])
 security = HTTPBearer()
 
 
+# ========== Turnstile (CAPTCHA) 검증 ==========
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+
+async def verify_turnstile(token: str, client_ip: str) -> bool:
+    """
+    Cloudflare Turnstile 토큰 검증
+    Returns: True if valid, False otherwise
+    """
+    secret_key = settings.turnstile_secret_key
+
+    # 시크릿 키가 없으면 검증 비활성화 (개발 환경)
+    if not secret_key:
+        logger.warning("[TURNSTILE] Secret key not configured, skipping verification")
+        return True
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                TURNSTILE_VERIFY_URL,
+                data={
+                    "secret": secret_key,
+                    "response": token,
+                    "remoteip": client_ip,
+                },
+                timeout=10.0
+            )
+            result = response.json()
+
+            if result.get("success"):
+                logger.debug(f"[TURNSTILE] Verification successful")
+                return True
+            else:
+                error_codes = result.get("error-codes", [])
+                logger.warning(f"[TURNSTILE] Verification failed: {error_codes}")
+                return False
+
+    except Exception as e:
+        logger.error(f"[TURNSTILE] Verification error: {str(e)}")
+        # 네트워크 오류 시 통과 (가용성 우선)
+        return True
+
+
 def get_auth_service(db=Depends(get_db)) -> AuthService:
     """인증 서비스 의존성"""
     return AuthService(db)
@@ -162,16 +206,37 @@ async def login(
 
 @router.post("/register", response_model=TokenResponse)
 async def register(
-    request: RegisterRequest,
+    register_request: RegisterRequest,
+    request: Request,
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """회원가입"""
+    """회원가입 (Turnstile 봇 방지 적용)"""
+    client_ip = _get_client_ip(request)
+
+    # Turnstile 검증 (프로덕션 환경에서 필수)
+    if settings.turnstile_secret_key:
+        if not register_request.turnstile_token:
+            logger.warning(f"[REGISTER] Missing Turnstile token from IP: {client_ip[:10]}...")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="보안 검증이 필요합니다. 페이지를 새로고침해주세요."
+            )
+
+        is_valid = await verify_turnstile(register_request.turnstile_token, client_ip)
+        if not is_valid:
+            logger.warning(f"[REGISTER] Turnstile verification failed for IP: {client_ip[:10]}...")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="보안 검증에 실패했습니다. 다시 시도해주세요."
+            )
+
     try:
         result = await auth_service.register(
-            request.email,
-            request.password,
-            request.shop_name
+            register_request.email,
+            register_request.password,
+            register_request.shop_name
         )
+        logger.info(f"[REGISTER] New registration from IP: {client_ip[:10]}...")
         return result
     except ValueError as e:
         raise HTTPException(

@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@marsidev/react-turnstile": "^1.4.1",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "lucide-react": "^0.294.0",

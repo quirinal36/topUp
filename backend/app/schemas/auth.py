@@ -41,6 +41,7 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., description="이메일")
     password: str = Field(..., min_length=8, description="비밀번호 (8자 이상)")
     shop_name: str = Field(..., min_length=1, max_length=100, description="상점명")
+    turnstile_token: Optional[str] = Field(None, description="Cloudflare Turnstile 토큰")
 
     @field_validator('email')
     @classmethod

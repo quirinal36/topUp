@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     resend_from_email: str
     resend_from_name: str
 
+    # Cloudflare Turnstile 설정 (봇 방지)
+    turnstile_secret_key: str = ""  # 빈 문자열이면 검증 비활성화 (개발용)
+
     @property
     def cors_origins_list(self) -> List[str]:
         """CORS 허용 도메인 리스트 반환"""
