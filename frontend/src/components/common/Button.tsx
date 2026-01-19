@@ -3,7 +3,7 @@ import { clsx } from 'clsx';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'success' | 'error';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'pos' | 'pos-lg';
   isLoading?: boolean;
 }
 
@@ -24,6 +24,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       sm: 'min-h-[2rem] min-w-[2rem] px-3 py-1 text-sm',
       md: 'min-h-touch min-w-touch px-4 py-2',
       lg: 'min-h-touch-lg px-6 py-3 text-lg',
+      // POS system sizes - large touch targets for tablet
+      pos: 'min-h-pos min-w-pos px-6 py-3 text-lg font-semibold rounded-xl shadow-pos-button active:shadow-pos-button-active active:scale-[0.98] transition-all duration-150',
+      'pos-lg': 'min-h-pos-lg min-w-pos-lg px-8 py-4 text-xl font-bold rounded-2xl shadow-pos-button active:shadow-pos-button-active active:scale-[0.98] transition-all duration-150',
     };
 
     return (

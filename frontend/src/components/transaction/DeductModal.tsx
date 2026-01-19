@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
+import { Coffee, Minus } from 'lucide-react';
+import { clsx } from 'clsx';
 import Modal from '../common/Modal';
 import Input from '../common/Input';
 import Button from '../common/Button';
+import QuickAmountSelector from '../pos/QuickAmountSelector';
+import Numpad from '../pos/Numpad';
 import { deduct } from '../../api/transactions';
 import { getMenus } from '../../api/menus';
 import { useToast } from '../../contexts/ToastContext';
+import { audioFeedback } from '../../utils/audioFeedback';
 import { Menu } from '../../types';
 
 interface DeductModalProps {
@@ -31,6 +36,7 @@ export default function DeductModal({
   const [error, setError] = useState('');
   const [menus, setMenus] = useState<Menu[]>([]);
   const [selectedMenuId, setSelectedMenuId] = useState<string>('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   // 메뉴 목록 불러오기
   useEffect(() => {
@@ -38,11 +44,17 @@ export default function DeductModal({
       getMenus(false).then((response) => {
         setMenus(response.menus);
       }).catch(() => {
-        // 메뉴 로드 실패해도 수동 입력은 가능하도록
         setMenus([]);
       });
+      // Initialize audio on modal open
+      audioFeedback.init();
     }
   }, [isOpen]);
+
+  // 메뉴 기반 빠른 금액 또는 기본값
+  const quickAmounts = menus.length > 0
+    ? menus.slice(0, 8).map(m => m.price)
+    : [4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000];
 
   // 메뉴 선택 시 금액 및 노트 자동 설정
   const handleMenuSelect = (menuId: string) => {
@@ -52,26 +64,54 @@ export default function DeductModal({
       if (selectedMenu) {
         setAmount(selectedMenu.price.toString());
         setNote(selectedMenu.name);
+        audioFeedback.playSelect();
       }
     } else {
-      // "직접 입력" 선택 시 초기화
       setAmount('');
       setNote('');
     }
   };
 
   // 빠른 금액 선택
-  const quickAmounts = [3000, 5000, 10000, 15000, 20000];
+  const handleQuickAmountSelect = (selectedAmount: number) => {
+    setAmount(selectedAmount.toString());
+    setShowCustomInput(false);
+    // 메뉴와 매칭되면 노트 자동 설정
+    const matchingMenu = menus.find(m => m.price === selectedAmount);
+    if (matchingMenu) {
+      setNote(matchingMenu.name);
+      setSelectedMenuId(matchingMenu.id);
+    } else {
+      setNote('');
+      setSelectedMenuId('');
+    }
+    audioFeedback.playSelect();
+  };
+
+  // 직접 입력 모드
+  const handleCustomInput = () => {
+    setShowCustomInput(true);
+    setAmount('');
+    setSelectedMenuId('');
+    setNote('');
+  };
+
+  // 넘패드 입력
+  const handleNumpadChange = (value: string) => {
+    setAmount(value);
+  };
 
   const handleSubmit = async () => {
     const amountNum = parseInt(amount);
     if (!amount || amountNum <= 0) {
       setError('사용 금액을 입력해주세요');
+      audioFeedback.playError();
       return;
     }
 
     if (amountNum > currentBalance) {
       setError(`잔액이 부족합니다. (현재 잔액: ${currentBalance.toLocaleString()}원)`);
+      audioFeedback.playError();
       return;
     }
 
@@ -84,11 +124,13 @@ export default function DeductModal({
         amount: amountNum,
         note: note || undefined,
       });
+      audioFeedback.playSuccess();
       toast.success(`${customerName}님의 ${amountNum.toLocaleString()}원이 사용되었습니다`);
       onSuccess();
       handleClose();
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || '차감에 실패했습니다';
+      audioFeedback.playError();
       toast.error(errorMsg);
       setError(errorMsg);
     } finally {
@@ -101,35 +143,46 @@ export default function DeductModal({
     setNote('');
     setError('');
     setSelectedMenuId('');
+    setShowCustomInput(false);
     onClose();
   };
 
+  const amountNum = parseInt(amount) || 0;
+  const newBalance = currentBalance - amountNum;
+  const isInsufficientBalance = amountNum > currentBalance;
+
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="사용 (차감)" size="md">
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <p className="text-gray-600 dark:text-gray-400">
-            <span className="font-semibold text-gray-900 dark:text-white">{customerName}</span>
-            님
-          </p>
-          <p className="text-sm">
-            현재 잔액:{' '}
-            <span className="font-bold text-primary-600 dark:text-primary-400">
+    <Modal isOpen={isOpen} onClose={handleClose} title="사용 (차감)" size="lg">
+      <div className="space-y-5">
+        {/* 고객 정보 헤더 - POS 스타일 */}
+        <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-primary-900/20 rounded-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-800/50 flex items-center justify-center">
+              <Coffee className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{customerName}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">고객</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-500 dark:text-gray-400">현재 잔액</p>
+            <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
               {currentBalance.toLocaleString()}원
-            </span>
-          </p>
+            </p>
+          </div>
         </div>
 
-        {/* 메뉴 선택 드롭다운 */}
+        {/* 메뉴 선택 (드롭다운) - 메뉴가 있을 때만 표시 */}
         {menus.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
               메뉴 선택
             </label>
             <select
               value={selectedMenuId}
               onChange={(e) => handleMenuSelect(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-button text-sm bg-white dark:bg-[#2d2420] dark:border-primary-800/50 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full min-h-pos px-4 py-3 border border-gray-200 rounded-xl text-lg bg-white dark:bg-[#2d2420] dark:border-primary-800/50 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="">직접 입력</option>
               {menus.map((menu) => (
@@ -141,48 +194,71 @@ export default function DeductModal({
           </div>
         )}
 
-        {/* 빠른 금액 선택 - 메뉴 미선택 시에만 표시 */}
-        {!selectedMenuId && (
+        {/* 빠른 금액 선택 - POS 스타일 */}
+        {!selectedMenuId && !showCustomInput && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
               빠른 선택
             </label>
-            <div className="flex flex-wrap gap-2">
-              {quickAmounts.map((quickAmount) => (
-                <button
-                  key={quickAmount}
-                  type="button"
-                  onClick={() => setAmount(quickAmount.toString())}
-                  className={`px-3 py-2 rounded-button border text-sm font-medium transition-colors min-h-touch
-                    ${parseInt(amount) === quickAmount
-                      ? 'border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-primary-800/50 dark:text-gray-400'
-                    }`}
-                >
-                  {quickAmount.toLocaleString()}원
-                </button>
-              ))}
+            <QuickAmountSelector
+              amounts={quickAmounts}
+              selectedAmount={amountNum || null}
+              onSelect={handleQuickAmountSelect}
+              onCustom={handleCustomInput}
+            />
+          </div>
+        )}
+
+        {/* 직접 입력 모드 - 넘패드 */}
+        {showCustomInput && (
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <label className="text-base font-semibold text-gray-700 dark:text-gray-300">
+                직접 입력
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowCustomInput(false)}
+                className="text-sm text-primary-600 dark:text-primary-400 hover:underline"
+              >
+                빠른 선택으로 돌아가기
+              </button>
+            </div>
+            <div className="flex flex-col tablet:flex-row gap-4">
+              <div className="flex-1">
+                <Input
+                  inputSize="pos"
+                  type="text"
+                  placeholder="금액을 입력하세요"
+                  value={amount ? `${parseInt(amount).toLocaleString()}원` : ''}
+                  readOnly
+                  className="text-center text-2xl font-bold"
+                />
+              </div>
+              <div className="tablet:w-64">
+                <Numpad
+                  value={amount}
+                  onChange={handleNumpadChange}
+                  maxLength={7}
+                />
+              </div>
             </div>
           </div>
         )}
 
-        {/* 사용 금액 */}
-        <Input
-          label="사용 금액"
-          type="number"
-          placeholder="0"
-          value={amount}
-          onChange={(e) => {
-            setAmount(e.target.value);
-            // 금액 직접 수정 시 메뉴 선택 해제
-            if (selectedMenuId) {
-              setSelectedMenuId('');
-            }
-          }}
-        />
+        {/* 선택된 금액 표시 (빠른 선택 모드) */}
+        {!showCustomInput && amountNum > 0 && (
+          <div className="text-center py-2">
+            <span className="text-gray-500 dark:text-gray-400">선택 금액: </span>
+            <span className="text-2xl font-bold text-gray-900 dark:text-white">
+              {amountNum.toLocaleString()}원
+            </span>
+          </div>
+        )}
 
-        {/* 비고 (주문 메뉴) - 메뉴 선택 시 읽기 전용 */}
+        {/* 비고 (주문 메뉴) */}
         <Input
+          inputSize="pos"
           label="주문 메뉴 (선택)"
           type="text"
           placeholder="아메리카노, 카페라떼"
@@ -191,27 +267,64 @@ export default function DeductModal({
           disabled={!!selectedMenuId}
         />
 
-        {/* 차감 후 잔액 미리보기 */}
-        {amount && parseInt(amount) > 0 && (
-          <div className="bg-gray-50 dark:bg-primary-900/10 rounded-button p-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">차감 후 잔액</span>
-              <span className={`font-bold ${currentBalance - parseInt(amount) < 0 ? 'text-error-500' : 'text-gray-900 dark:text-white'}`}>
-                {(currentBalance - parseInt(amount)).toLocaleString()}원
-              </span>
+        {/* 차감 후 잔액 미리보기 - POS 스타일 */}
+        {amountNum > 0 && (
+          <div className={clsx(
+            'rounded-xl p-4 border-2',
+            isInsufficientBalance
+              ? 'bg-error-50 border-error-200 dark:bg-error-900/20 dark:border-error-800'
+              : 'bg-success-50 border-success-200 dark:bg-success-900/20 dark:border-success-800'
+          )}>
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">차감 후 잔액</p>
+                <p className={clsx(
+                  'text-2xl font-bold',
+                  isInsufficientBalance
+                    ? 'text-error-600 dark:text-error-400'
+                    : 'text-success-600 dark:text-success-400'
+                )}>
+                  {newBalance.toLocaleString()}원
+                </p>
+              </div>
+              <div className="text-right">
+                <Minus className={clsx(
+                  'w-8 h-8',
+                  isInsufficientBalance
+                    ? 'text-error-400'
+                    : 'text-success-400'
+                )} />
+              </div>
             </div>
+            {isInsufficientBalance && (
+              <p className="text-sm text-error-600 dark:text-error-400 mt-2">
+                잔액이 부족합니다
+              </p>
+            )}
           </div>
         )}
 
-        {error && <p className="text-error-500 text-sm">{error}</p>}
+        {error && <p className="text-error-500 text-base font-medium">{error}</p>}
 
-        {/* 버튼 */}
-        <div className="flex gap-2 pt-2">
-          <Button variant="outline" onClick={handleClose} className="flex-1">
+        {/* 버튼 - POS 스타일 */}
+        <div className="flex gap-3 pt-2">
+          <Button
+            variant="outline"
+            size="pos"
+            onClick={handleClose}
+            className="flex-1"
+          >
             취소
           </Button>
-          <Button onClick={handleSubmit} isLoading={isLoading} className="flex-1">
-            사용하기
+          <Button
+            variant="error"
+            size="pos-lg"
+            onClick={handleSubmit}
+            isLoading={isLoading}
+            disabled={!amountNum || isInsufficientBalance}
+            className="flex-[2]"
+          >
+            차감하기 ({amountNum.toLocaleString()}원)
           </Button>
         </div>
       </div>
