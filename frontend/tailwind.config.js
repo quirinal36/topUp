@@ -79,6 +79,15 @@ export default {
       spacing: {
         'touch': '2.75rem',
         'touch-lg': '3rem',
+        // POS system spacing
+        'pos-sm': '3rem',      // 48px
+        'pos-md': '3.5rem',    // 56px
+        'pos-lg': '4rem',      // 64px
+        'pos-xl': '5rem',      // 80px
+      },
+      screens: {
+        'tablet': '768px',
+        'tablet-lg': '1024px',
       },
       borderRadius: {
         'card': '0.75rem',
@@ -89,6 +98,11 @@ export default {
         'card': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
         'card-hover': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
         'modal': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+        // POS system shadows
+        'pos-button': '0 2px 4px rgba(0, 0, 0, 0.1)',
+        'pos-button-active': 'inset 0 2px 4px rgba(0, 0, 0, 0.1)',
+        'pos-card': '0 4px 12px rgba(0, 0, 0, 0.08)',
+        'pos-card-selected': '0 0 0 3px rgba(166, 113, 79, 0.4), 0 4px 12px rgba(0, 0, 0, 0.12)',
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-out',
@@ -111,9 +125,13 @@ export default {
       },
       minHeight: {
         'touch': '2.75rem',
+        'pos': '3.5rem',       // 56px
+        'pos-lg': '4rem',      // 64px
       },
       minWidth: {
         'touch': '2.75rem',
+        'pos': '3.5rem',       // 56px
+        'pos-lg': '4rem',      // 64px
       },
     },
   },

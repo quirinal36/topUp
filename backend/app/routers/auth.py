@@ -4,6 +4,7 @@
 """
 import logging
 import os
+import httpx
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple
 from collections import defaultdict
@@ -37,7 +38,13 @@ from ..schemas.auth import (
     PasswordResetConfirmSchema,
     PasswordResetResponse,
     PasswordResetVerifyResponse,
+    UsernameCheckRequest,
+    UsernameCheckResponse,
+    NiceAuthStartResponse,
+    NiceAuthCompleteRequest,
+    NiceAuthCompleteResponse,
 )
+from ..services.nice_service import get_nice_service, generate_request_id
 
 
 # ========== Rate Limiting 구현 ==========
@@ -94,6 +101,49 @@ router = APIRouter(prefix="/api/auth", tags=["인증"])
 security = HTTPBearer()
 
 
+# ========== Turnstile (CAPTCHA) 검증 ==========
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+
+async def verify_turnstile(token: str, client_ip: str) -> bool:
+    """
+    Cloudflare Turnstile 토큰 검증
+    Returns: True if valid, False otherwise
+    """
+    secret_key = settings.turnstile_secret_key
+
+    # 시크릿 키가 없으면 검증 비활성화 (개발 환경)
+    if not secret_key:
+        logger.warning("[TURNSTILE] Secret key not configured, skipping verification")
+        return True
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                TURNSTILE_VERIFY_URL,
+                data={
+                    "secret": secret_key,
+                    "response": token,
+                    "remoteip": client_ip,
+                },
+                timeout=10.0
+            )
+            result = response.json()
+
+            if result.get("success"):
+                logger.debug(f"[TURNSTILE] Verification successful")
+                return True
+            else:
+                error_codes = result.get("error-codes", [])
+                logger.warning(f"[TURNSTILE] Verification failed: {error_codes}")
+                return False
+
+    except Exception as e:
+        logger.error(f"[TURNSTILE] Verification error: {str(e)}")
+        # 네트워크 오류 시 통과 (가용성 우선)
+        return True
+
+
 def get_auth_service(db=Depends(get_db)) -> AuthService:
     """인증 서비스 의존성"""
     return AuthService(db)
@@ -125,7 +175,7 @@ async def login(
     request: Request,
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """이메일/비밀번호 로그인 (Rate Limiting 적용)"""
+    """아이디/비밀번호 로그인 (Rate Limiting 적용)"""
     client_ip = _get_client_ip(request)
 
     # Rate Limit 확인
@@ -140,12 +190,12 @@ async def login(
         )
 
     try:
-        result = await auth_service.login(login_request.email, login_request.password)
+        result = await auth_service.login(login_request.username, login_request.password)
         if not result:
             _record_login_attempt(client_ip, success=False)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="이메일 또는 비밀번호가 올바르지 않습니다"
+                detail="아이디 또는 비밀번호가 올바르지 않습니다"
             )
 
         _record_login_attempt(client_ip, success=True)
@@ -162,16 +212,39 @@ async def login(
 
 @router.post("/register", response_model=TokenResponse)
 async def register(
-    request: RegisterRequest,
+    register_request: RegisterRequest,
+    request: Request,
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """회원가입"""
+    """회원가입 (본인인증 + Turnstile 봇 방지 적용)"""
+    client_ip = _get_client_ip(request)
+
+    # Turnstile 검증 (프로덕션 환경에서 필수)
+    if settings.turnstile_secret_key:
+        if not register_request.turnstile_token:
+            logger.warning(f"[REGISTER] Missing Turnstile token from IP: {client_ip[:10]}...")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="보안 검증이 필요합니다. 페이지를 새로고침해주세요."
+            )
+
+        is_valid = await verify_turnstile(register_request.turnstile_token, client_ip)
+        if not is_valid:
+            logger.warning(f"[REGISTER] Turnstile verification failed for IP: {client_ip[:10]}...")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="보안 검증에 실패했습니다. 다시 시도해주세요."
+            )
+
     try:
         result = await auth_service.register(
-            request.email,
-            request.password,
-            request.shop_name
+            username=register_request.username,
+            password=register_request.password,
+            shop_name=register_request.shop_name,
+            verification_token=register_request.verification_token,
+            email=register_request.email
         )
+        logger.info(f"[REGISTER] New registration from IP: {client_ip[:10]}...")
         return result
     except ValueError as e:
         raise HTTPException(
@@ -275,6 +348,76 @@ async def reset_pin(
     return {"message": "PIN이 재설정되었습니다"}
 
 
+@router.post("/check-username", response_model=UsernameCheckResponse)
+async def check_username(
+    request: UsernameCheckRequest
+):
+    """아이디 중복 확인"""
+    admin_db = get_supabase_admin_client()
+    result = admin_db.table("shops").select("id").eq("username", request.username.lower()).execute()
+
+    if result.data:
+        return UsernameCheckResponse(
+            available=False,
+            message="이미 사용 중인 아이디입니다"
+        )
+
+    return UsernameCheckResponse(
+        available=True,
+        message="사용 가능한 아이디입니다"
+    )
+
+
+@router.post("/nice/start", response_model=NiceAuthStartResponse)
+async def nice_auth_start():
+    """NICE 본인인증 시작"""
+    request_id = generate_request_id()
+    nice_service = get_nice_service()
+    result = nice_service.start_auth(request_id)
+
+    return NiceAuthStartResponse(
+        request_id=result["request_id"],
+        enc_data=result["enc_data"],
+        mock_mode=result.get("mock_mode", False)
+    )
+
+
+@router.post("/nice/complete", response_model=NiceAuthCompleteResponse)
+async def nice_auth_complete(
+    request: NiceAuthCompleteRequest,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """NICE 본인인증 완료"""
+    nice_service = get_nice_service()
+    result = nice_service.complete_auth(request.request_id, request.enc_data)
+
+    if not result.success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.error_message or "본인인증에 실패했습니다"
+        )
+
+    # CI 중복 확인 (이미 가입된 사용자인지)
+    admin_db = get_supabase_admin_client()
+    existing = admin_db.table("shops").select("id").eq("ci", result.ci).execute()
+
+    if existing.data:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 가입된 정보입니다. 기존 계정으로 로그인해주세요."
+        )
+
+    # 임시 토큰 발급 (CI 포함, 10분 유효)
+    verification_token, expires_at = auth_service.create_verification_token(result.ci)
+
+    logger.info(f"[NICE] 본인인증 완료 - request_id: {request.request_id[:8]}...")
+
+    return NiceAuthCompleteResponse(
+        verification_token=verification_token,
+        expires_at=expires_at
+    )
+
+
 @router.get("/me", response_model=ShopResponse)
 async def get_current_shop_info(
     shop_id: str = Depends(get_current_shop)
@@ -282,7 +425,7 @@ async def get_current_shop_info(
     """현재 로그인된 상점 정보 조회"""
     admin_db = get_supabase_admin_client()
     result = admin_db.table("shops").select(
-        "id, name, email, business_number, onboarding_completed, created_at"
+        "id, name, username, email, business_number, onboarding_completed, created_at"
     ).eq("id", shop_id).maybe_single().execute()
     if not result or not result.data:
         raise HTTPException(
