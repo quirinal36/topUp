@@ -265,6 +265,7 @@ export default function CustomerDetail() {
         onClose={() => setIsChargeModalOpen(false)}
         customerId={selectedCustomer.id}
         customerName={selectedCustomer.name}
+        currentBalance={selectedCustomer.current_balance}
         onSuccess={handleTransactionSuccess}
       />
 
