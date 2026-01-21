@@ -6,7 +6,7 @@ import { login as apiLogin } from '../api/auth';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { isAuthenticated, login } = useAuthStore();
+  const { login } = useAuthStore();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -14,12 +14,11 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // 이미 로그인되어 있으면 대시보드로 이동
+  // 로그인 페이지 진입 시 기존 인증 상태 초기화
+  // (만료된 토큰이 남아있을 수 있으므로)
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/');
-    }
-  }, [isAuthenticated, navigate]);
+    localStorage.removeItem('access_token');
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
