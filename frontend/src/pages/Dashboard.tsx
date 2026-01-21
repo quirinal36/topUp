@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Wallet, Search, Plus, Minus, UserPlus, Clock, Coffee } from 'lucide-react';
 import { clsx } from 'clsx';
 import Button from '../components/common/Button';
@@ -23,6 +23,9 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 30;
+
+  // Refs for customer cards
+  const customerCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Modal states
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -91,6 +94,12 @@ export default function Dashboard() {
   const handleCustomerSelect = (customer: Customer) => {
     setSelectedCustomer(customer);
     audioFeedback.playSelect();
+
+    // 선택된 고객 카드로 스크롤
+    const cardElement = customerCardRefs.current.get(customer.id);
+    if (cardElement) {
+      cardElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const handleTransactionSuccess = () => {
@@ -230,6 +239,13 @@ export default function Dashboard() {
                 {filteredCustomers.map((customer) => (
                   <CustomerCard
                     key={customer.id}
+                    ref={(el) => {
+                      if (el) {
+                        customerCardRefs.current.set(customer.id, el);
+                      } else {
+                        customerCardRefs.current.delete(customer.id);
+                      }
+                    }}
                     customer={customer}
                     variant="pos"
                     selected={selectedCustomer?.id === customer.id}

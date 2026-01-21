@@ -1,7 +1,7 @@
 {
   "active": true,
-  "started_at": "2026-01-19T00:26:58+09:00",
-  "original_prompt": "/ultrawork ",
-  "reinforcement_count": 4,
-  "last_checked_at": "2026-01-19T11:46:14.021Z"
+  "started_at": "2026-01-19T21:40:50+09:00",
+  "original_prompt": "<ide_opened_file>The user opened the file /home/leehg/topUp/.sisyphus/ultrawork-state.json in the IDE. This may or may not be related to the current task.</ide_opened_file>\\n화면의 첫 페이지에서 \\ ",
+  "reinforcement_count": 14,
+  "last_checked_at": "2026-01-19T22:32:42.445Z"
 }

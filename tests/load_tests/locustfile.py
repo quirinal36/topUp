@@ -24,7 +24,7 @@ env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
 # 환경 변수에서 테스트 설정 로드
-TEST_EMAIL = os.getenv("TEST_EMAIL", "test@example.com")
+TEST_USERNAME = os.getenv("TEST_USERNAME", "testuser")
 TEST_PASSWORD = os.getenv("TEST_PASSWORD", "testpassword123")
 
 
@@ -47,19 +47,18 @@ class CafePrepaidUser(HttpUser):
             self.load_customers()
 
     def login(self):
-        """로그인하여 토큰 획득"""
-        response = self.client.post("/api/auth/login", json={
-            "email": TEST_EMAIL,
+        """로그인하여 토큰 획득 (username/password 방식)"""
+        with self.client.post("/api/auth/login", json={
+            "username": TEST_USERNAME,
             "password": TEST_PASSWORD
-        }, catch_response=True)
-
-        if response.status_code == 200:
-            data = response.json()
-            self.token = data.get("access_token")
-            self.shop_id = data.get("shop", {}).get("id")
-            response.success()
-        else:
-            response.failure(f"Login failed: {response.status_code}")
+        }, catch_response=True) as response:
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get("access_token")
+                self.shop_id = data.get("shop", {}).get("id")
+                response.success()
+            else:
+                response.failure(f"Login failed: {response.status_code}")
 
     def load_customers(self):
         """테스트에 사용할 고객 목록 로드"""

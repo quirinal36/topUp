@@ -28,7 +28,7 @@ load_dotenv(env_path)
 
 # 설정
 API_URL = os.getenv("TEST_API_URL", "http://localhost:8000")
-TEST_EMAIL = os.getenv("TEST_EMAIL", "test@example.com")
+TEST_USERNAME = os.getenv("TEST_USERNAME", "testuser")
 TEST_PASSWORD = os.getenv("TEST_PASSWORD", "testpassword123")
 
 # 동시 요청 제한
@@ -53,11 +53,11 @@ class TestDataGenerator:
         }
 
     async def login(self) -> bool:
-        """로그인"""
+        """로그인 (username/password 방식)"""
         async with httpx.AsyncClient(base_url=API_URL, timeout=30.0) as client:
             try:
                 response = await client.post("/api/auth/login", json={
-                    "email": TEST_EMAIL,
+                    "username": TEST_USERNAME,
                     "password": TEST_PASSWORD
                 })
                 if response.status_code == 200:

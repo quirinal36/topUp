@@ -30,9 +30,13 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // 인증 실패 시 로그아웃
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
+      // 로그인 요청은 401이 정상 응답일 수 있으므로 제외
+      const isLoginRequest = error.config?.url?.includes('/auth/login');
+      if (!isLoginRequest) {
+        // 인증 실패 시 로그아웃
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

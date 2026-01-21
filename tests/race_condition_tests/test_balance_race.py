@@ -13,6 +13,7 @@ import os
 import asyncio
 import httpx
 import pytest
+import pytest_asyncio
 from typing import List, Tuple
 from datetime import datetime
 import json
@@ -23,9 +24,12 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
+# pytest-asyncio 설정
+pytestmark = pytest.mark.asyncio(loop_scope="class")
+
 # 테스트 설정
 API_URL = os.getenv("TEST_API_URL", "http://localhost:8000")
-TEST_EMAIL = os.getenv("TEST_EMAIL", "test@example.com")
+TEST_USERNAME = os.getenv("TEST_USERNAME", "testuser")
 TEST_PASSWORD = os.getenv("TEST_PASSWORD", "testpassword123")
 
 # 동시 요청 수
@@ -35,13 +39,13 @@ CONCURRENT_REQUESTS = 20
 class TestBalanceRaceCondition:
     """잔액 Race Condition 테스트"""
 
-    @pytest.fixture(autouse=True)
+    @pytest_asyncio.fixture(autouse=True)
     async def setup(self):
         """테스트 셋업 - 로그인 및 테스트 고객 생성"""
         async with httpx.AsyncClient(base_url=API_URL, timeout=30.0) as client:
-            # 로그인
+            # 로그인 (username/password 방식)
             response = await client.post("/api/auth/login", json={
-                "email": TEST_EMAIL,
+                "username": TEST_USERNAME,
                 "password": TEST_PASSWORD
             })
             assert response.status_code == 200, f"Login failed: {response.text}"
@@ -85,7 +89,6 @@ class TestBalanceRaceCondition:
 
             # 테스트 후 정리 (선택적)
 
-    @pytest.mark.asyncio
     async def test_concurrent_deduct_insufficient_balance(self):
         """
         테스트: 동시 차감 시 잔액 부족 처리
@@ -161,7 +164,6 @@ class TestBalanceRaceCondition:
             assert len(successes) <= max_possible_successes, \
                 f"너무 많은 성공: {len(successes)} (최대 {max_possible_successes})"
 
-    @pytest.mark.asyncio
     async def test_concurrent_charge_consistency(self):
         """
         테스트: 동시 충전 시 잔액 일관성
@@ -227,7 +229,6 @@ class TestBalanceRaceCondition:
             assert final_balance == expected_balance, \
                 f"잔액 불일치! 예상: {expected_balance}, 실제: {final_balance}"
 
-    @pytest.mark.asyncio
     async def test_mixed_charge_deduct_consistency(self):
         """
         테스트: 충전과 차감이 동시에 발생할 때 일관성
@@ -325,12 +326,12 @@ class TestBalanceRaceCondition:
 class TestBalanceReconciliation:
     """잔액 정합성 검증 테스트"""
 
-    @pytest.fixture(autouse=True)
+    @pytest_asyncio.fixture(autouse=True)
     async def setup(self):
         """테스트 셋업"""
         async with httpx.AsyncClient(base_url=API_URL, timeout=30.0) as client:
             response = await client.post("/api/auth/login", json={
-                "email": TEST_EMAIL,
+                "username": TEST_USERNAME,
                 "password": TEST_PASSWORD
             })
             assert response.status_code == 200
@@ -340,7 +341,6 @@ class TestBalanceReconciliation:
             self.headers = {"Authorization": f"Bearer {self.token}"}
             yield
 
-    @pytest.mark.asyncio
     async def test_balance_equals_transaction_sum(self):
         """
         테스트: 잔액이 거래 내역 합계와 일치하는지 검증
@@ -366,11 +366,18 @@ class TestBalanceReconciliation:
                     f"/api/transactions?customer_id={customer_id}&page_size=1000",
                     headers=self.headers
                 )
+
+                # 응답 확인
+                if tx_response.status_code != 200:
+                    print(f"거래 조회 실패 (고객: {customer_id}): {tx_response.text}")
+                    continue
+
                 tx_data = tx_response.json()
 
                 # 거래 합계 계산
                 calculated_balance = 0
-                for tx in tx_data["transactions"]:
+                transactions = tx_data.get("transactions", [])
+                for tx in transactions:
                     if tx["type"] == "CHARGE":
                         calculated_balance += tx["amount"]
                     elif tx["type"] == "DEDUCT":
