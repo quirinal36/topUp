@@ -44,6 +44,7 @@ export const register = async (
   password: string,
   shopName: string,
   verificationToken: string,
+  pin: string,
   email?: string,
   turnstileToken?: string
 ): Promise<LoginResponse> => {
@@ -52,6 +53,7 @@ export const register = async (
     password,
     shop_name: shopName,
     verification_token: verificationToken,
+    pin,
     email: email || null,
     turnstile_token: turnstileToken,
   });

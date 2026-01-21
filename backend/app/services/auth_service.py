@@ -250,6 +250,7 @@ class AuthService:
         password: str,
         shop_name: str,
         verification_token: str,
+        pin: str,
         email: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -260,6 +261,7 @@ class AuthService:
             password: 비밀번호
             shop_name: 상점명
             verification_token: 본인인증 완료 토큰 (CI 포함)
+            pin: 사용자가 설정한 4자리 PIN 번호
             email: 비밀번호 재설정용 이메일 (선택)
         """
         logger.debug(f"[REGISTER] 회원가입 시도 - username: {username}")
@@ -282,13 +284,16 @@ class AuthService:
             logger.debug(f"[REGISTER] 아이디 중복: {username}")
             raise ValueError("이미 사용 중인 아이디입니다")
 
+        # PIN 유효성 검증
+        if not pin or len(pin) != 4 or not pin.isdigit():
+            raise ValueError("PIN은 4자리 숫자여야 합니다")
+
         # 상점 생성
         shop_id = str(uuid.uuid4())
         password_hash = self.hash_password(password)
 
-        # 보안: 랜덤 4자리 PIN 생성 (기본값 0000 사용하지 않음)
-        initial_pin = _generate_random_pin()
-        initial_pin_hash = self.pin_service.hash_pin(initial_pin)
+        # 사용자가 설정한 PIN 해시
+        pin_hash = self.pin_service.hash_pin(pin)
 
         now = datetime.now(timezone.utc)
         shop_data = {
@@ -297,8 +302,8 @@ class AuthService:
             "password_hash": password_hash,
             "name": shop_name,
             "ci": ci,
-            "pin_hash": initial_pin_hash,
-            "pin_change_required": True,  # 첫 로그인 시 PIN 변경 필요
+            "pin_hash": pin_hash,
+            "pin_change_required": False,  # 사용자가 직접 설정했으므로 변경 불필요
             "created_at": now.isoformat(),
             "updated_at": now.isoformat()
         }
@@ -321,8 +326,7 @@ class AuthService:
             "token_type": "bearer",
             "expires_in": settings.access_token_expire_minutes * 60,
             "shop_id": shop_id,
-            "initial_pin": initial_pin,  # 초기 PIN 반환 (사용자에게 안내 필요)
-            "pin_change_required": True
+            "pin_change_required": False  # 사용자가 직접 설정한 PIN 사용
         }
 
     # ========== 비밀번호 재설정 기능 ==========

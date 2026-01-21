@@ -40,6 +40,7 @@ class RegisterRequest(BaseModel):
     """회원가입 요청"""
     username: str = Field(..., min_length=4, max_length=20, description="아이디 (영문 소문자 + 숫자)")
     password: str = Field(..., min_length=8, description="비밀번호 (8자 이상)")
+    pin: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$", description="4자리 PIN 번호")
     email: Optional[str] = Field(None, description="비밀번호 재설정용 이메일 (선택)")
     shop_name: str = Field(..., min_length=1, max_length=100, description="상점명")
     verification_token: str = Field(..., description="본인인증 완료 토큰")
@@ -51,6 +52,13 @@ class RegisterRequest(BaseModel):
         if not re.match(r'^[a-z0-9]+$', v):
             raise ValueError('아이디는 영문 소문자와 숫자만 사용할 수 있습니다')
         return v.lower()
+
+    @field_validator('pin')
+    @classmethod
+    def validate_pin(cls, v: str) -> str:
+        if not re.match(r'^\d{4}$', v):
+            raise ValueError('PIN은 4자리 숫자여야 합니다')
+        return v
 
     @field_validator('email')
     @classmethod

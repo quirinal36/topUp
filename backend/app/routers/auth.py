@@ -242,6 +242,7 @@ async def register(
             password=register_request.password,
             shop_name=register_request.shop_name,
             verification_token=register_request.verification_token,
+            pin=register_request.pin,
             email=register_request.email
         )
         logger.info(f"[REGISTER] New registration from IP: {client_ip[:10]}...")
