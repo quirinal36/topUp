@@ -28,6 +28,8 @@ export interface Transaction {
   note?: string;
   created_at: string;
   customer_name?: string;
+  is_cancelled?: boolean;
+  cancelled_by_id?: string;
 }
 
 // 인증 타입

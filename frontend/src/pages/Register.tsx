@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Lock, Eye, EyeOff, Store, Mail, Check, AlertCircle, Shield, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, Store, Mail, Check, AlertCircle, ChevronLeft, ChevronRight, KeyRound } from 'lucide-react';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { useAuthStore } from '../stores/authStore';
-import { register as apiRegister, checkUsername, startNiceAuth, completeNiceAuth } from '../api/auth';
+import { register as apiRegister, checkUsername } from '../api/auth';
 
 // Cloudflare Turnstile Site Key (환경변수에서 로드)
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
+// 임시: NICE 본인인증 비활성화 (4단계로 축소)
+// Step 1: 계정 정보, Step 2: 상점 정보, Step 3: PIN 설정, Step 4: 최종 가입
 type Step = 1 | 2 | 3 | 4;
 
 export default function Register() {
@@ -31,10 +33,12 @@ export default function Register() {
   const [shopName, setShopName] = useState('');
   const [email, setEmail] = useState('');
 
-  // Step 3: 본인인증
-  const [verificationToken, setVerificationToken] = useState<string | null>(null);
-  const [verificationExpires, setVerificationExpires] = useState<Date | null>(null);
-  const [niceAuthLoading, setNiceAuthLoading] = useState(false);
+  // Step 3: PIN 설정
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Step 4: 최종 가입
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -150,47 +154,28 @@ export default function Register() {
     return true;
   };
 
-  // 본인인증 시작
-  const handleStartNiceAuth = async () => {
-    setNiceAuthLoading(true);
+  // Step 3 (PIN) 유효성 검사
+  const validateStep3 = (): boolean => {
     setError('');
 
-    try {
-      const startResult = await startNiceAuth();
-
-      // 모킹 모드에서는 바로 완료 처리
-      if (startResult.mock_mode) {
-        const completeResult = await completeNiceAuth(startResult.request_id, startResult.enc_data);
-        setVerificationToken(completeResult.verification_token);
-        setVerificationExpires(new Date(completeResult.expires_at));
-      } else {
-        // 실제 NICE 연동 시 팝업 처리
-        // TODO: 실제 NICE 계약 후 구현
-        setError('NICE 본인인증 서비스 연동 준비 중입니다');
-      }
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } } };
-      if (error.response?.data?.detail) {
-        setError(error.response.data.detail);
-      } else {
-        setError('본인인증 중 오류가 발생했습니다');
-      }
-    } finally {
-      setNiceAuthLoading(false);
+    if (!/^\d{4}$/.test(pin)) {
+      setError('PIN은 4자리 숫자여야 합니다');
+      return false;
     }
+
+    if (pin !== confirmPin) {
+      setError('PIN이 일치하지 않습니다');
+      return false;
+    }
+
+    return true;
   };
 
   // 최종 회원가입
   const handleRegister = async () => {
-    if (!verificationToken) {
-      setError('본인인증이 필요합니다');
-      return;
-    }
-
-    // 인증 만료 확인
-    if (verificationExpires && new Date() > verificationExpires) {
-      setError('본인인증이 만료되었습니다. 다시 인증해주세요.');
-      setVerificationToken(null);
+    // PIN 검증
+    if (!pin || !/^\d{4}$/.test(pin)) {
+      setError('PIN 설정이 필요합니다');
       setCurrentStep(3);
       return;
     }
@@ -205,11 +190,16 @@ export default function Register() {
     setError('');
 
     try {
+      // 임시: NICE 본인인증 비활성화로 인해 임시 토큰 사용
+      // 백엔드에서도 이 토큰을 처리하도록 수정 필요
+      const tempVerificationToken = 'TEMP_SKIP_NICE_AUTH';
+
       const response = await apiRegister(
         username,
         password,
         shopName,
-        verificationToken,
+        tempVerificationToken,
+        pin,
         email || undefined,
         turnstileToken || undefined
       );
@@ -236,7 +226,7 @@ export default function Register() {
       setCurrentStep(2);
     } else if (currentStep === 2 && validateStep2()) {
       setCurrentStep(3);
-    } else if (currentStep === 3 && verificationToken) {
+    } else if (currentStep === 3 && validateStep3()) {
       setCurrentStep(4);
     }
   };
@@ -268,11 +258,11 @@ export default function Register() {
         </div>
 
         {/* 진행 단계 표시 */}
-        <div className="flex items-center justify-center gap-2 mb-6">
+        <div className="flex items-center justify-center gap-1 mb-6">
           {[1, 2, 3, 4].map((step) => (
             <div key={step} className="flex items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
                   step < currentStep
                     ? 'bg-green-500 text-white'
                     : step === currentStep
@@ -280,11 +270,11 @@ export default function Register() {
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                 }`}
               >
-                {step < currentStep ? <Check className="w-4 h-4" /> : step}
+                {step < currentStep ? <Check className="w-3 h-3" /> : step}
               </div>
               {step < 4 && (
                 <div
-                  className={`w-8 h-1 mx-1 rounded ${
+                  className={`w-6 h-1 mx-0.5 rounded ${
                     step < currentStep
                       ? 'bg-green-500'
                       : 'bg-gray-200 dark:bg-gray-700'
@@ -462,51 +452,105 @@ export default function Register() {
             </>
           )}
 
-          {/* Step 3: 본인인증 */}
+          {/* Step 3: PIN 설정 */}
           {currentStep === 3 && (
             <>
               <h2 className="text-heading-3 text-center text-gray-900 dark:text-white mb-6">
-                본인인증
+                PIN 번호 설정
               </h2>
 
               <div className="space-y-4">
-                <div className="text-center py-6">
-                  <Shield className="w-16 h-16 mx-auto text-primary-500 mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    안전한 서비스 이용을 위해<br />
-                    본인인증이 필요합니다
+                <div className="text-center py-2">
+                  <KeyRound className="w-12 h-12 mx-auto text-primary-500 mb-3" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    결제 및 민감한 작업 시 사용할<br />
+                    4자리 PIN 번호를 설정해주세요
                   </p>
+                </div>
 
-                  {verificationToken ? (
-                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                      <div className="flex items-center justify-center gap-2 text-green-600 dark:text-green-400">
-                        <Check className="w-5 h-5" />
-                        <span className="font-medium">본인인증 완료</span>
-                      </div>
-                      {verificationExpires && (
-                        <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                          {Math.ceil((verificationExpires.getTime() - Date.now()) / 60000)}분 내에 가입을 완료해주세요
-                        </p>
-                      )}
-                    </div>
-                  ) : (
+                {/* PIN 입력 */}
+                <div>
+                  <label htmlFor="pin" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    PIN 번호 <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      ref={pinInputRef}
+                      id="pin"
+                      type={showPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      value={pin}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                        setPin(value);
+                      }}
+                      placeholder="4자리 숫자"
+                      required
+                      maxLength={4}
+                      className="w-full pl-10 pr-12 py-3 rounded-button border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1a1412] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-center text-xl tracking-[0.5em] font-mono"
+                    />
                     <button
                       type="button"
-                      onClick={handleStartNiceAuth}
-                      disabled={niceAuthLoading}
-                      className="w-full min-h-touch flex items-center justify-center gap-2 px-4 py-3 rounded-button font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => setShowPin(!showPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {niceAuthLoading ? (
-                        '인증 중...'
-                      ) : (
-                        <>
-                          <Shield className="w-5 h-5" />
-                          본인인증 하기
-                        </>
-                      )}
+                      {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
-                  )}
+                  </div>
                 </div>
+
+                {/* PIN 확인 */}
+                <div>
+                  <label htmlFor="confirmPin" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    PIN 번호 확인 <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      id="confirmPin"
+                      type={showConfirmPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      value={confirmPin}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                        setConfirmPin(value);
+                      }}
+                      placeholder="PIN 재입력"
+                      required
+                      maxLength={4}
+                      className="w-full pl-10 pr-12 py-3 rounded-button border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1a1412] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-center text-xl tracking-[0.5em] font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPin(!showConfirmPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showConfirmPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {pin.length === 4 && confirmPin.length === 4 && (
+                  <p className={`text-xs flex items-center gap-1 ${pin === confirmPin ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                    {pin === confirmPin ? (
+                      <>
+                        <Check className="w-3 h-3" />
+                        PIN이 일치합니다
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-3 h-3" />
+                        PIN이 일치하지 않습니다
+                      </>
+                    )}
+                  </p>
+                )}
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                  PIN은 충전/차감 등 민감한 작업 시 사용됩니다.<br />
+                  분실 시 비밀번호 재설정 후 변경 가능합니다.
+                </p>
               </div>
             </>
           )}
@@ -536,7 +580,7 @@ export default function Register() {
                     </div>
                   )}
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">본인인증</span>
+                    <span className="text-gray-500 dark:text-gray-400">PIN 설정</span>
                     <span className="font-medium text-green-600 dark:text-green-400 flex items-center gap-1">
                       <Check className="w-4 h-4" />
                       완료
@@ -581,7 +625,6 @@ export default function Register() {
               <button
                 type="button"
                 onClick={handleBack}
-                disabled={currentStep === 3 && verificationToken !== null}
                 className="flex-1 min-h-touch flex items-center justify-center gap-2 px-4 py-3 rounded-button font-medium transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="w-5 h-5" />
@@ -593,7 +636,7 @@ export default function Register() {
               <button
                 type="button"
                 onClick={handleNext}
-                disabled={currentStep === 3 && !verificationToken}
+                disabled={currentStep === 3 && (pin.length !== 4 || pin !== confirmPin)}
                 className="flex-1 min-h-touch flex items-center justify-center gap-2 px-4 py-3 rounded-button font-medium transition-colors bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 다음

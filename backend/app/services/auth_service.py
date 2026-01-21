@@ -250,6 +250,7 @@ class AuthService:
         password: str,
         shop_name: str,
         verification_token: str,
+        pin: str,
         email: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -260,21 +261,27 @@ class AuthService:
             password: 비밀번호
             shop_name: 상점명
             verification_token: 본인인증 완료 토큰 (CI 포함)
+            pin: 사용자가 설정한 4자리 PIN 번호
             email: 비밀번호 재설정용 이메일 (선택)
         """
         logger.debug(f"[REGISTER] 회원가입 시도 - username: {username}")
 
-        # 본인인증 토큰 검증
-        ci = self.verify_verification_token(verification_token)
-        if not ci:
-            logger.warning(f"[REGISTER] 유효하지 않은 본인인증 토큰 - username: {username}")
-            raise ValueError("본인인증이 만료되었습니다. 다시 인증해주세요.")
+        # 임시: NICE 본인인증 비활성화 - 특수 토큰 허용
+        if verification_token == "TEMP_SKIP_NICE_AUTH":
+            logger.info(f"[REGISTER] NICE 본인인증 스킵 (임시) - username: {username}")
+            ci = f"TEMP_CI_{username}_{uuid.uuid4().hex[:8]}"  # 임시 CI 생성
+        else:
+            # 본인인증 토큰 검증
+            ci = self.verify_verification_token(verification_token)
+            if not ci:
+                logger.warning(f"[REGISTER] 유효하지 않은 본인인증 토큰 - username: {username}")
+                raise ValueError("본인인증이 만료되었습니다. 다시 인증해주세요.")
 
-        # CI 중복 확인 (이미 가입된 사용자인지)
-        existing_ci = self.admin_db.table("shops").select("id").eq("ci", ci).execute()
-        if existing_ci.data:
-            logger.warning(f"[REGISTER] CI 중복 - username: {username}")
-            raise ValueError("이미 가입된 정보입니다. 기존 계정으로 로그인해주세요.")
+            # CI 중복 확인 (이미 가입된 사용자인지)
+            existing_ci = self.admin_db.table("shops").select("id").eq("ci", ci).execute()
+            if existing_ci.data:
+                logger.warning(f"[REGISTER] CI 중복 - username: {username}")
+                raise ValueError("이미 가입된 정보입니다. 기존 계정으로 로그인해주세요.")
 
         # 아이디 중복 체크 (admin 클라이언트로 RLS 우회)
         existing = self.admin_db.table("shops").select("id").eq("username", username.lower()).execute()
@@ -282,13 +289,16 @@ class AuthService:
             logger.debug(f"[REGISTER] 아이디 중복: {username}")
             raise ValueError("이미 사용 중인 아이디입니다")
 
+        # PIN 유효성 검증
+        if not pin or len(pin) != 4 or not pin.isdigit():
+            raise ValueError("PIN은 4자리 숫자여야 합니다")
+
         # 상점 생성
         shop_id = str(uuid.uuid4())
         password_hash = self.hash_password(password)
 
-        # 보안: 랜덤 4자리 PIN 생성 (기본값 0000 사용하지 않음)
-        initial_pin = _generate_random_pin()
-        initial_pin_hash = self.pin_service.hash_pin(initial_pin)
+        # 사용자가 설정한 PIN 해시
+        pin_hash = self.pin_service.hash_pin(pin)
 
         now = datetime.now(timezone.utc)
         shop_data = {
@@ -297,8 +307,8 @@ class AuthService:
             "password_hash": password_hash,
             "name": shop_name,
             "ci": ci,
-            "pin_hash": initial_pin_hash,
-            "pin_change_required": True,  # 첫 로그인 시 PIN 변경 필요
+            "pin_hash": pin_hash,
+            "pin_change_required": False,  # 사용자가 직접 설정했으므로 변경 불필요
             "created_at": now.isoformat(),
             "updated_at": now.isoformat()
         }
@@ -321,8 +331,7 @@ class AuthService:
             "token_type": "bearer",
             "expires_in": settings.access_token_expire_minutes * 60,
             "shop_id": shop_id,
-            "initial_pin": initial_pin,  # 초기 PIN 반환 (사용자에게 안내 필요)
-            "pin_change_required": True
+            "pin_change_required": False  # 사용자가 직접 설정한 PIN 사용
         }
 
     # ========== 비밀번호 재설정 기능 ==========
@@ -573,26 +582,48 @@ class AuthService:
         새 비밀번호 설정
         """
         masked_email = _mask_email(email)
-        logger.debug(f"[PASSWORD_RESET] 비밀번호 변경 - email: {masked_email}")
+        logger.debug(f"[PASSWORD_RESET] 비밀번호 변경 시도 - email: {masked_email}")
 
         # reset_token 검증
         shop_id = self._verify_reset_token(reset_token, email)
         if not shop_id:
-            logger.debug(f"[PASSWORD_RESET] 유효하지 않은 토큰: {masked_email}")
+            logger.warning(f"[PASSWORD_RESET] 유효하지 않은 토큰: {masked_email}")
+            return False
+
+        # 상점 존재 여부 확인
+        shop_check = self.admin_db.table("shops").select("id").eq("id", shop_id).maybe_single().execute()
+        if not shop_check or not shop_check.data:
+            logger.warning(f"[PASSWORD_RESET] 상점을 찾을 수 없음: {masked_email}")
             return False
 
         # 새 비밀번호 해시
         new_password_hash = self.hash_password(new_password)
+        logger.debug(f"[PASSWORD_RESET] 새 비밀번호 해시 생성됨 - shop_id: {shop_id[:8]}...")
 
         # 비밀번호 업데이트
-        self.admin_db.table("shops").update({
-            "password_hash": new_password_hash,
-            "reset_code_hash": None,
-            "reset_code_expires_at": None,
-            "reset_code_failed_count": 0,
-            "reset_code_locked_until": None,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }).eq("id", shop_id).execute()
+        try:
+            self.admin_db.table("shops").update({
+                "password_hash": new_password_hash,
+                "reset_code_hash": None,
+                "reset_code_expires_at": None,
+                "reset_code_failed_count": 0,
+                "reset_code_locked_until": None,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }).eq("id", shop_id).execute()
 
-        logger.info(f"[PASSWORD_RESET] 비밀번호 변경 완료 - shop_id: {shop_id[:8]}...")
-        return True
+            # 업데이트 확인 - 새 비밀번호 해시가 저장되었는지 검증
+            verify_result = self.admin_db.table("shops").select("password_hash").eq("id", shop_id).maybe_single().execute()
+            if verify_result and verify_result.data:
+                stored_hash = verify_result.data.get("password_hash")
+                if stored_hash == new_password_hash:
+                    logger.info(f"[PASSWORD_RESET] 비밀번호 변경 완료 (검증됨) - shop_id: {shop_id[:8]}...")
+                    return True
+                else:
+                    logger.error(f"[PASSWORD_RESET] 비밀번호 해시 불일치 - shop_id: {shop_id[:8]}...")
+                    return False
+            else:
+                logger.error(f"[PASSWORD_RESET] 비밀번호 검증 실패 - shop_id: {shop_id[:8]}...")
+                return False
+        except Exception as e:
+            logger.error(f"[PASSWORD_RESET] 비밀번호 업데이트 오류 - shop_id: {shop_id[:8]}..., error: {str(e)}")
+            return False

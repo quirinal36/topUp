@@ -259,12 +259,15 @@ export default function Transactions() {
             {transactions.map((transaction: Transaction) => {
               const typeInfo = getTypeInfo(transaction.type);
               const Icon = typeInfo.icon;
-              const canCancel = transaction.type !== 'CANCEL';
+              // 취소 거래가 아니고, 아직 취소되지 않은 거래만 취소 가능
+              const canCancel = transaction.type !== 'CANCEL' && !transaction.is_cancelled;
 
               return (
                 <div
                   key={transaction.id}
-                  className="flex items-center gap-3 p-3 bg-white rounded-card shadow-card dark:bg-[#2d2420] dark:shadow-none dark:border dark:border-primary-800/30"
+                  className={`flex items-center gap-3 p-3 bg-white rounded-card shadow-card dark:bg-[#2d2420] dark:shadow-none dark:border dark:border-primary-800/30 ${
+                    transaction.is_cancelled ? 'opacity-60' : ''
+                  }`}
                 >
                   <div
                     className={`w-10 h-10 rounded-full ${typeInfo.bgColor} flex items-center justify-center`}
@@ -277,6 +280,11 @@ export default function Transactions() {
                       <span className={`text-sm font-medium ${typeInfo.color}`}>
                         {typeInfo.label}
                       </span>
+                      {transaction.is_cancelled && (
+                        <span className="px-1.5 py-0.5 text-xs font-medium bg-error-100 text-error-600 dark:bg-error-900/30 dark:text-error-400 rounded">
+                          취소됨
+                        </span>
+                      )}
                       {transaction.customer_name && (
                         <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
                           {transaction.customer_name}

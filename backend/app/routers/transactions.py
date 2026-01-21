@@ -106,7 +106,9 @@ async def get_transactions(
             service_amount=t.get("service_amount"),
             payment_method=t.get("payment_method"),
             note=t.get("note"),
-            created_at=t["created_at"]
+            created_at=t["created_at"],
+            is_cancelled=t.get("is_cancelled", False),
+            cancelled_by_id=t.get("cancelled_by_id")
         )
         for t in result.data
     ]
@@ -267,6 +269,8 @@ async def cancel(
         elif error_code == "UNAUTHORIZED":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error_message)
         elif error_code == "INVALID_CANCEL":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
+        elif error_code == "ALREADY_CANCELLED":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
         elif error_code == "INSUFFICIENT_BALANCE_FOR_CANCEL":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)

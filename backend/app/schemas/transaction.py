@@ -39,6 +39,8 @@ class TransactionResponse(BaseModel):
     payment_method: Optional[PaymentMethod]
     note: Optional[str]
     created_at: str
+    is_cancelled: bool = False
+    cancelled_by_id: Optional[str] = None
 
 
 class TransactionWithCustomer(TransactionResponse):
