@@ -102,9 +102,33 @@ export default function Dashboard() {
     }
   };
 
-  const handleTransactionSuccess = () => {
-    fetchData();
-    setSelectedCustomer(null);
+  const handleTransactionSuccess = async () => {
+    // 선택된 고객 ID를 저장
+    const selectedId = selectedCustomer?.id;
+
+    try {
+      const [summaryData, customerData, transactionData] = await Promise.all([
+        getDashboardSummary(),
+        getCustomers({ page, page_size: pageSize }),
+        getTransactions({ page: 1, page_size: 5 }),
+      ]);
+      setSummary(summaryData);
+      setCustomers(customerData.customers);
+      setTotal(customerData.total);
+      setRecentTransactions(transactionData.transactions);
+
+      // 선택된 고객의 최신 데이터로 업데이트
+      if (selectedId) {
+        const updatedCustomer = customerData.customers.find(c => c.id === selectedId);
+        if (updatedCustomer) {
+          setSelectedCustomer(updatedCustomer);
+        } else {
+          setSelectedCustomer(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    }
   };
 
   const handleAddCustomer = async () => {
