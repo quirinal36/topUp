@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, UserPlus, ArrowUpDown, Coffee } from 'lucide-react';
+import { Search, UserPlus, ArrowUpDown, BookText } from 'lucide-react';
 import { clsx } from 'clsx';
 import Modal from '../components/common/Modal';
 import Input from '../components/common/Input';
@@ -233,7 +233,7 @@ export default function Customers() {
           </div>
         ) : filteredCustomers.length === 0 ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-            <Coffee className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <BookText className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p className="text-lg">
               {phoneDigits ? '검색 결과가 없습니다.' : '등록된 고객이 없습니다.'}
             </p>

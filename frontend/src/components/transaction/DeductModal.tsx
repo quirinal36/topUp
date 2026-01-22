@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Coffee, Minus } from 'lucide-react';
+import { BookText, Minus } from 'lucide-react';
 import { clsx } from 'clsx';
 import Modal from '../common/Modal';
 import Input from '../common/Input';
@@ -188,7 +188,7 @@ export default function DeductModal({
         <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-primary-900/20 rounded-xl">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-800/50 flex items-center justify-center">
-              <Coffee className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              <BookText className="w-6 h-6 text-primary-600 dark:text-primary-400" />
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{customerName}</p>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Coffee, Plus, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { BookText, Plus, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
@@ -75,7 +75,7 @@ export default function OnboardingStep2({ onBack, onNext }: OnboardingStep2Props
     <Card className="p-6 sm:p-8">
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
-          <Coffee className="w-8 h-8 text-primary-600" />
+          <BookText className="w-8 h-8 text-primary-600" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
           메뉴 등록

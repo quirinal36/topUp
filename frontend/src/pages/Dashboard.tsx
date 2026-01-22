@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Wallet, Search, Plus, Minus, UserPlus, Clock, Coffee, X } from 'lucide-react';
+import { Wallet, Search, Plus, Minus, UserPlus, Clock, BookText, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
@@ -350,7 +350,7 @@ export default function Dashboard() {
               </div>
             ) : filteredCustomers.length === 0 ? (
               <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                <Coffee className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <BookText className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p className="text-lg">
                   {phoneDigits ? '검색 결과가 없습니다.' : '등록된 고객이 없습니다.'}
                 </p>
@@ -471,7 +471,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                <Coffee className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                <BookText className="w-16 h-16 mx-auto mb-4 opacity-30" />
                 <p className="text-lg">고객을 선택해주세요</p>
                 <p className="text-sm mt-1">전화번호 뒷자리로 검색하거나</p>
                 <p className="text-sm">목록에서 선택하세요</p>

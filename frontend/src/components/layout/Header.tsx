@@ -1,4 +1,5 @@
 import { Moon, Sun, LogOut, Menu } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../common/Button';
 
@@ -7,6 +8,7 @@ interface HeaderProps {
 }
 
 export default function Header({ onMenuClick }: HeaderProps) {
+  const navigate = useNavigate();
   const { shopName, darkMode, toggleDarkMode, logout } = useAuthStore();
 
   return (
@@ -21,8 +23,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
           >
             <Menu className="w-5 h-5" />
           </Button>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">☕</span>
+          <div
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => navigate('/')}
+          >
+            <span className="text-2xl">📒</span>
             <h1 className="text-lg font-semibold text-primary-600 dark:text-primary-400">
               {shopName || '커밍스'}
             </h1>
