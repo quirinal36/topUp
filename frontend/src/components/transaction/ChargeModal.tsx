@@ -142,6 +142,7 @@ export default function ChargeModal({
     setNote('');
     setError('');
     setShowCustomInput(false);
+    setIsLoading(false);
     onClose();
   };
 

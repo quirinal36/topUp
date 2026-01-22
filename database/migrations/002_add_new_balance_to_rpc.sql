@@ -58,7 +58,7 @@ BEGIN
         updated_at = NOW()
     WHERE id = p_customer_id;
 
-    -- 거래 기록 생성
+    -- 거래 기록 생성 (payment_method를 ENUM으로 캐스팅)
     INSERT INTO transactions (
         customer_id,
         type,
@@ -73,7 +73,7 @@ BEGIN
         v_total_amount,
         p_actual_payment,
         p_service_amount,
-        p_payment_method,
+        p_payment_method::payment_method,
         p_note
     )
     RETURNING id INTO v_transaction_id;
