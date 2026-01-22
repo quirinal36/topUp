@@ -182,7 +182,7 @@ export default function DeductModal({
   const isInsufficientBalance = amountNum > currentBalance;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="사용 (차감)" size="lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title="사용 (차감)" size="lg" data-testid="deduct-modal">
       <div className="space-y-5">
         {/* 고객 정보 헤더 - POS 스타일 */}
         <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-primary-900/20 rounded-xl">

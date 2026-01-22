@@ -149,7 +149,7 @@ export default function ChargeModal({
   const actualPaymentNum = parseInt(actualPayment) || 0;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="충전" size="lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title="충전" size="lg" data-testid="charge-modal">
       <div className="space-y-5">
         {/* 고객 정보 헤더 - POS 스타일 */}
         <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-primary-900/20 rounded-xl">

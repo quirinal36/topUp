@@ -35,7 +35,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <Button variant="ghost" size="sm" onClick={toggleDarkMode}>
             {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </Button>
-          <Button variant="ghost" size="sm" onClick={logout}>
+          <Button variant="ghost" size="sm" onClick={logout} aria-label="로그아웃" data-testid="logout-button">
             <LogOut className="w-5 h-5" />
           </Button>
         </div>

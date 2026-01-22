@@ -289,7 +289,7 @@ export default function Dashboard() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[calc(100vh-500px)] overflow-y-auto">
+              <div className="space-y-3 max-h-[calc(100vh-500px)] overflow-y-auto" data-testid="search-results">
                 {filteredCustomers.map((customer) => (
                   <CustomerCard
                     key={customer.id}
@@ -339,7 +339,7 @@ export default function Dashboard() {
         {/* 오른쪽: 선택된 고객 및 액션 패널 */}
         <div className="tablet-lg:flex-[2] space-y-4">
           {/* 선택된 고객 정보 */}
-          <div className="bg-white dark:bg-[#2d2420] rounded-xl p-5 shadow-pos-card">
+          <div className="bg-white dark:bg-[#2d2420] rounded-xl p-5 shadow-pos-card" data-testid="customer-detail">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
               선택된 고객
             </h3>
@@ -364,12 +364,15 @@ export default function Dashboard() {
 
                 <div className="text-center py-4 border-2 border-dashed border-gray-200 dark:border-primary-800/30 rounded-xl">
                   <p className="text-sm text-gray-500 dark:text-gray-400">현재 잔액</p>
-                  <p className={clsx(
-                    'text-4xl font-bold',
-                    selectedCustomer.current_balance >= 0
-                      ? 'text-primary-600 dark:text-primary-400'
-                      : 'text-error-500'
-                  )}>
+                  <p
+                    data-testid="customer-balance"
+                    className={clsx(
+                      'text-4xl font-bold',
+                      selectedCustomer.current_balance >= 0
+                        ? 'text-primary-600 dark:text-primary-400'
+                        : 'text-error-500'
+                    )}
+                  >
                     {formatCurrency(selectedCustomer.current_balance)}
                   </p>
                 </div>
@@ -505,6 +508,7 @@ export default function Dashboard() {
         }}
         title="새 고객 등록"
         size="md"
+        data-testid="add-customer-modal"
       >
         <div className="space-y-5">
           <Input

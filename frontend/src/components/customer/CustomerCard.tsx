@@ -22,6 +22,7 @@ const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, 
       <div
         ref={ref}
         onClick={onClick}
+        data-testid="customer-item"
         className={clsx(
           'min-h-pos-xl p-4 rounded-xl cursor-pointer transition-all duration-150',
           'flex items-center justify-between',
@@ -65,12 +66,15 @@ const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, 
 
         <div className="text-right">
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">잔액</p>
-          <p className={clsx(
-            'text-2xl font-bold',
-            customer.current_balance >= 0
-              ? 'text-primary-600 dark:text-primary-400'
-              : 'text-error-500'
-          )}>
+          <p
+            data-testid="customer-balance"
+            className={clsx(
+              'text-2xl font-bold',
+              customer.current_balance >= 0
+                ? 'text-primary-600 dark:text-primary-400'
+                : 'text-error-500'
+            )}
+          >
             {formatCurrency(customer.current_balance)}
           </p>
         </div>
@@ -80,7 +84,7 @@ const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, 
 
   // Default variant
   return (
-    <Card hoverable onClick={onClick}>
+    <Card hoverable onClick={onClick} data-testid="customer-item">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
