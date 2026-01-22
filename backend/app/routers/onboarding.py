@@ -79,16 +79,38 @@ async def check_business_number_duplicate(
     # xxx-xx-xxxxx 포맷
     formatted = f"{digits[:3]}-{digits[3:5]}-{digits[5:]}"
 
-    # 중복 확인 (현재 상점 제외)
-    result = admin_db.table("shops").select("id").eq(
+    # 중복 확인 (현재 상점 제외) - username과 name도 조회
+    result = admin_db.table("shops").select("id, username, name").eq(
         "business_number", formatted
     ).neq("id", shop_id).maybe_single().execute()
 
-    is_duplicate = result.data is not None
+    # result가 None이거나 data가 None인 경우 처리
+    is_duplicate = result is not None and result.data is not None
+
+    if is_duplicate:
+        shop_data = result.data
+        username = shop_data.get("username", "")
+        shop_name = shop_data.get("name", "")
+
+        # 사용자명 마스킹 (앞 2자리 제외 나머지 *)
+        masked_username = ""
+        if username and len(username) > 2:
+            masked_username = username[:2] + "*" * (len(username) - 2)
+        elif username:
+            masked_username = username[0] + "*" * (len(username) - 1) if len(username) > 0 else ""
+
+        return BusinessNumberCheckDuplicateResponse(
+            is_duplicate=True,
+            message="이미 등록된 사업자등록번호입니다. 로그인하거나 비밀번호를 찾아주세요.",
+            existing_username=masked_username,
+            existing_shop_name=shop_name
+        )
 
     return BusinessNumberCheckDuplicateResponse(
-        is_duplicate=is_duplicate,
-        message="이미 등록된 사업자등록번호입니다" if is_duplicate else "사용 가능한 사업자등록번호입니다"
+        is_duplicate=False,
+        message="사용 가능한 사업자등록번호입니다",
+        existing_username=None,
+        existing_shop_name=None
     )
 
 
@@ -143,7 +165,8 @@ async def complete_step1(
         "business_number", data.business_number
     ).neq("id", shop_id).maybe_single().execute()
 
-    if duplicate_check.data is not None:
+    # duplicate_check가 None이거나 data가 None이 아닌 경우 중복
+    if duplicate_check is not None and duplicate_check.data is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="이미 등록된 사업자등록번호입니다"

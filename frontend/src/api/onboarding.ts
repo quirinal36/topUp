@@ -12,6 +12,8 @@ export interface BusinessVerifyResponse {
 export interface BusinessDuplicateResponse {
   is_duplicate: boolean;
   message: string;
+  existing_username?: string;
+  existing_shop_name?: string;
 }
 
 export const getOnboardingStatus = async (): Promise<OnboardingStatus> => {

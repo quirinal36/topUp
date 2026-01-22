@@ -24,6 +24,8 @@ class BusinessNumberCheckDuplicateResponse(BaseModel):
     """사업자등록번호 중복 확인 응답"""
     is_duplicate: bool = Field(..., description="중복 여부")
     message: str = Field(..., description="결과 메시지")
+    existing_username: Optional[str] = Field(None, description="이미 등록된 사용자 ID (마스킹)")
+    existing_shop_name: Optional[str] = Field(None, description="이미 등록된 상점명")
 
 
 class ShopOnboardingStep1(BaseModel):
