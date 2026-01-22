@@ -165,6 +165,7 @@ export default function DeductModal({
     setError('');
     setSelectedMenuId('');
     setShowCustomInput(false);
+    setIsLoading(false);
     onClose();
   };
 
