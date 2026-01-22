@@ -105,14 +105,22 @@ export default function ChargeModal({
     handleClose();
 
     // 4. 백그라운드에서 API 호출
+    const expectedBalance = currentBalance + chargeAmount;
     try {
-      await charge({
+      const result = await charge({
         customer_id: customerId,
         actual_payment: parseInt(actualPayment),
         service_amount: parseInt(serviceAmount) || 0,
         payment_method: paymentMethod,
         note: note || undefined,
       });
+
+      // 5. 잔액 검증: API 응답의 new_balance와 예상값 비교
+      if (result.new_balance !== undefined && result.new_balance !== expectedBalance) {
+        console.warn(`[충전 검증] 잔액 불일치 감지: 예상=${expectedBalance}, 실제=${result.new_balance}`);
+        toast.warning(`잔액이 동기화되었습니다. (${result.new_balance.toLocaleString()}원)`);
+      }
+
       // API 성공: 백그라운드에서 전체 데이터 동기화
       onSuccess();
     } catch (err) {

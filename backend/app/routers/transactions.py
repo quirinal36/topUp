@@ -170,7 +170,8 @@ async def charge(
         service_amount=rpc_result["service_amount"],
         payment_method=request.payment_method,
         note=rpc_result.get("note"),
-        created_at=datetime.now().isoformat()
+        created_at=datetime.now().isoformat(),
+        new_balance=rpc_result.get("new_balance")
     )
 
 
@@ -227,7 +228,8 @@ async def deduct(
         service_amount=None,
         payment_method=None,
         note=rpc_result.get("note"),
-        created_at=datetime.now().isoformat()
+        created_at=datetime.now().isoformat(),
+        new_balance=rpc_result.get("new_balance")
     )
 
 
@@ -286,5 +288,6 @@ async def cancel(
         service_amount=None,
         payment_method=None,
         note=rpc_result.get("note"),
-        created_at=datetime.now().isoformat()
+        created_at=datetime.now().isoformat(),
+        new_balance=rpc_result.get("new_balance")
     )

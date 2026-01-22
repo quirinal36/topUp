@@ -30,6 +30,7 @@ export interface Transaction {
   customer_name?: string;
   is_cancelled?: boolean;
   cancelled_by_id?: string;
+  new_balance?: number;  // 거래 후 잔액 (검증용)
 }
 
 // 인증 타입
