@@ -1,5 +1,5 @@
 """
-카페 선결제 관리 시스템 - FastAPI 메인 애플리케이션
+선결제 관리 플랫폼 커밍스 (Comings) - FastAPI 메인 애플리케이션
 """
 import os
 from fastapi import FastAPI
@@ -14,8 +14,8 @@ IS_VERCEL = os.environ.get("VERCEL", False)
 
 # FastAPI 앱 생성 (Vercel에서는 lifespan 비활성화)
 app = FastAPI(
-    title="카페 선결제 관리 시스템 API",
-    description="카페 선결제(예치금) 관리를 위한 REST API",
+    title="선결제 관리 플랫폼 커밍스 API",
+    description="선결제(예치금) 관리를 위한 REST API - Comings",
     version="1.0.0",
 )
 
@@ -50,7 +50,7 @@ app.include_router(onboarding_router)
 async def root():
     """API 루트"""
     return {
-        "message": "카페 선결제 관리 시스템 API",
+        "message": "선결제 관리 플랫폼 커밍스 API",
         "version": "1.0.0",
         "docs": "/docs"
     }

@@ -382,7 +382,7 @@ export default function Settings() {
         <h2 className="text-heading-3 text-gray-900 dark:text-white mb-4">정보</h2>
         <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
           <p>버전: 1.0.0</p>
-          <p>카페 선결제 관리 시스템</p>
+          <p>선결제 관리 플랫폼 커밍스</p>
         </div>
       </Card>
 

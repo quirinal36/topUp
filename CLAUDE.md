@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Café Prepaid Management System (카페 선결제 관리 시스템) - A full-stack web application for managing prepaid customer balances, tracking charges/deductions, and providing analytics for small cafes.
+Comings - 선결제 관리 플랫폼 (Prepaid Management Platform) - A full-stack web application for managing prepaid customer balances, tracking charges/deductions, and providing analytics for small businesses.
+
+🌐 **Production URL**: https://www.comings.co.kr
 
 ## Tech Stack
 

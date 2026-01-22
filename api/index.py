@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 import traceback
 
 app = FastAPI(
-    title="카페 선결제 관리 시스템 API",
+    title="선결제 관리 플랫폼 커밍스 API",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json"
 )
@@ -43,7 +43,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api")
 async def root():
-    return {"message": "카페 선결제 관리 시스템 API", "version": "1.0.0"}
+    return {"message": "선결제 관리 플랫폼 커밍스 API", "version": "1.0.0"}
 
 
 @app.get("/api/health")

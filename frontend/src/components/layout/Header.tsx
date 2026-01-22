@@ -25,7 +25,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <div className="flex items-center gap-2">
             <span className="text-2xl">☕</span>
             <h1 className="text-lg font-semibold text-primary-600 dark:text-primary-400">
-              {shopName || '카페 선결제'}
+              {shopName || '커밍스'}
             </h1>
           </div>
         </div>

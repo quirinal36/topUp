@@ -1,1 +1,1 @@
-# 카페 선결제 관리 시스템 - Backend
+# 선결제 관리 플랫폼 커밍스 (Comings) - Backend

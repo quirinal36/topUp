@@ -253,7 +253,7 @@ export default function Register() {
         <div className="text-center mb-6">
           <span className="text-5xl">☕</span>
           <h1 className="text-heading-2 text-primary-700 dark:text-primary-400 mt-3">
-            카페 선결제
+            커밍스
           </h1>
         </div>
 
