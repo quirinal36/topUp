@@ -2,10 +2,10 @@
 메뉴 관리 API 라우터
 """
 import logging
-from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..database import get_supabase_admin_client
+from ..utils import now_seoul_iso
 from ..routers.auth import get_current_shop
 from ..schemas.menu import (
     MenuCreate,
@@ -158,7 +158,7 @@ async def update_menu(
             detail="수정할 내용이 없습니다"
         )
 
-    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data["updated_at"] = now_seoul_iso()
 
     result = admin_db.table("menus").update(update_data).eq("id", menu_id).eq("shop_id", shop_id).execute()
 
@@ -215,7 +215,7 @@ async def reorder_menus(
     for index, menu_id in enumerate(request.menu_ids):
         admin_db.table("menus").update({
             "display_order": index,
-            "updated_at": datetime.now(timezone.utc).isoformat()
+            "updated_at": now_seoul_iso()
         }).eq("id", menu_id).eq("shop_id", shop_id).execute()
 
     logger.info(f"[MENU] 메뉴 순서 변경 - shop_id: {shop_id[:8]}..., count: {len(request.menu_ids)}")

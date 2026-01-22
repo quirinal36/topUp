@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, UserPlus, ArrowUpDown, Coffee } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -46,18 +46,17 @@ export default function Customers() {
     fetchCustomers();
   }, [sortBy, sortOrder]);
 
-  // 전화번호 뒷자리로 필터링된 고객
-  const filteredCustomers = useMemo(() => {
-    if (!phoneDigits) return customers;
-    return customers.filter(c => c.phone_suffix.includes(phoneDigits));
-  }, [customers, phoneDigits]);
+  // 서버 검색 사용으로 클라이언트 필터링 제거 - customers를 직접 사용
+  const filteredCustomers = customers;
 
   const totalPages = Math.ceil(total / pageSize);
 
-  // 넘패드 검색
+  // 넘패드 검색 - 서버 사이드 검색 수행
   const handleNumpadChange = (value: string) => {
     setPhoneDigits(value);
     audioFeedback.playTap();
+    // 서버 API로 검색 (디바운스 없이 즉시 검색)
+    fetchCustomers(value, 1);
   };
 
   const handleSortChange = (newSortBy: string) => {

@@ -6,6 +6,7 @@ from typing import Optional
 import uuid
 
 from ..database import get_supabase_admin_client
+from ..utils import now_seoul_iso
 from ..routers.auth import get_current_shop
 from ..schemas.customer import (
     CustomerCreate,
@@ -89,14 +90,13 @@ async def create_customer(
         )
 
     # 고객 생성 (RLS 우회를 위해 admin 클라이언트 사용)
-    from datetime import datetime
     new_customer = {
         "id": str(uuid.uuid4()),
         "shop_id": shop_id,
         "name": customer.name,
         "phone_suffix": customer.phone_suffix,
         "current_balance": 0,
-        "created_at": datetime.now().isoformat()
+        "created_at": now_seoul_iso()
     }
 
     admin_db = get_supabase_admin_client()

@@ -7,6 +7,7 @@ from typing import Optional
 from datetime import datetime, date, timedelta
 
 from ..database import get_supabase_admin_client
+from ..utils import now_seoul_iso
 from ..routers.auth import get_current_shop
 from ..models.transaction import TransactionType
 from ..schemas.transaction import (
@@ -170,7 +171,7 @@ async def charge(
         service_amount=rpc_result["service_amount"],
         payment_method=request.payment_method,
         note=rpc_result.get("note"),
-        created_at=datetime.now().isoformat(),
+        created_at=now_seoul_iso(),
         new_balance=rpc_result.get("new_balance")
     )
 
@@ -228,7 +229,7 @@ async def deduct(
         service_amount=None,
         payment_method=None,
         note=rpc_result.get("note"),
-        created_at=datetime.now().isoformat(),
+        created_at=now_seoul_iso(),
         new_balance=rpc_result.get("new_balance")
     )
 
@@ -288,6 +289,6 @@ async def cancel(
         service_amount=None,
         payment_method=None,
         note=rpc_result.get("note"),
-        created_at=datetime.now().isoformat(),
+        created_at=now_seoul_iso(),
         new_balance=rpc_result.get("new_balance")
     )

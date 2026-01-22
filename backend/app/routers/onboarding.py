@@ -4,11 +4,11 @@
 """
 import logging
 import io
-from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from ..database import get_supabase_admin_client
+from ..utils import now_seoul_iso
 from ..routers.auth import get_current_shop
 from ..schemas.onboarding import (
     ShopOnboardingStep1,
@@ -175,7 +175,7 @@ async def complete_step1(
     update_data = {
         "name": data.name,
         "business_number": data.business_number,
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "updated_at": now_seoul_iso()
     }
 
     result = admin_db.table("shops").update(update_data).eq("id", shop_id).execute()
@@ -305,7 +305,7 @@ async def complete_onboarding(
 
     result = admin_db.table("shops").update({
         "onboarding_completed": True,
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "updated_at": now_seoul_iso()
     }).eq("id", shop_id).execute()
 
     if not result.data:
