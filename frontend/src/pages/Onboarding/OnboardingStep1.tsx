@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Store, FileText, ArrowRight } from 'lucide-react';
+import { Store, FileText, ArrowRight, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 import { useAuthStore } from '../../stores/authStore';
-import { updateStep1 } from '../../api/onboarding';
+import { updateStep1, verifyBusinessNumber, checkBusinessNumberDuplicate } from '../../api/onboarding';
 import { useToast } from '../../contexts/ToastContext';
 
 interface OnboardingStep1Props {
   onNext: () => void;
 }
+
+type VerificationStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
   const toast = useToast();
@@ -21,6 +23,11 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
   const [bizNumber, setBizNumber] = useState(businessNumber);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 사업자등록번호 검증 상태
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('idle');
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [isBusinessVerified, setIsBusinessVerified] = useState(false);
 
   useEffect(() => {
     if (!shopName && authShopName) {
@@ -42,6 +49,64 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
         formatted = value.slice(0, 3) + '-' + value.slice(3, 5) + '-' + value.slice(5);
       }
       setBizNumber(formatted);
+
+      // 검증 상태 초기화
+      setVerificationStatus('idle');
+      setVerificationMessage('');
+      setIsBusinessVerified(false);
+    }
+  };
+
+  // 사업자등록번호 검증
+  const handleVerifyBizNumber = async () => {
+    const digits = bizNumber.replace(/\D/g, '');
+
+    if (digits.length !== 10) {
+      setVerificationStatus('error');
+      setVerificationMessage('사업자등록번호 10자리를 입력해주세요');
+      return;
+    }
+
+    setVerificationStatus('loading');
+    setVerificationMessage('');
+    setError('');
+
+    try {
+      // 1. 국세청 API로 유효성 검증
+      const verifyResult = await verifyBusinessNumber(bizNumber);
+
+      if (!verifyResult.is_valid) {
+        setVerificationStatus('error');
+        setVerificationMessage(verifyResult.message);
+        setIsBusinessVerified(false);
+        return;
+      }
+
+      // 2. 중복 검사
+      const duplicateResult = await checkBusinessNumberDuplicate(bizNumber);
+
+      if (duplicateResult.is_duplicate) {
+        setVerificationStatus('error');
+        setVerificationMessage(duplicateResult.message);
+        setIsBusinessVerified(false);
+        return;
+      }
+
+      // 검증 성공
+      setVerificationStatus('success');
+      setVerificationMessage(
+        verifyResult.status_name
+          ? `${verifyResult.message} (${verifyResult.status_name})`
+          : verifyResult.message
+      );
+      setIsBusinessVerified(true);
+    } catch (err: unknown) {
+      setVerificationStatus('error');
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        '검증 중 오류가 발생했습니다';
+      setVerificationMessage(message);
+      setIsBusinessVerified(false);
     }
   };
 
@@ -52,10 +117,16 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
       return;
     }
 
-    // 사업자등록번호가 있으면 10자리 검증
+    // 사업자등록번호 필수 검사
     const bizDigits = bizNumber.replace(/\D/g, '');
-    if (bizNumber && bizDigits.length !== 10) {
-      setError('사업자등록번호는 10자리 숫자입니다');
+    if (bizDigits.length !== 10) {
+      setError('사업자등록번호 10자리를 입력해주세요');
+      return;
+    }
+
+    // 사업자등록번호 검증 여부 확인
+    if (!isBusinessVerified) {
+      setError('사업자등록번호 검증을 먼저 진행해주세요');
       return;
     }
 
@@ -65,7 +136,8 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
     try {
       await updateStep1({
         name: name.trim(),
-        business_number: bizNumber || undefined,
+        business_number: bizNumber,
+        is_business_verified: isBusinessVerified,
       });
 
       setStep1Data(name.trim(), bizNumber);
@@ -78,6 +150,34 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
       setError(message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const renderVerificationStatus = () => {
+    switch (verificationStatus) {
+      case 'loading':
+        return (
+          <div className="flex items-center gap-2 text-primary-600 dark:text-primary-400">
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-sm">검증 중...</span>
+          </div>
+        );
+      case 'success':
+        return (
+          <div className="flex items-center gap-2 text-success-600 dark:text-success-400">
+            <CheckCircle size={16} />
+            <span className="text-sm">{verificationMessage}</span>
+          </div>
+        );
+      case 'error':
+        return (
+          <div className="flex items-center gap-2 text-error-600 dark:text-error-400">
+            <XCircle size={16} />
+            <span className="text-sm">{verificationMessage}</span>
+          </div>
+        );
+      default:
+        return null;
     }
   };
 
@@ -106,16 +206,40 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
         />
 
         <div>
-          <Input
-            label="사업자등록번호"
-            placeholder="000-00-00000"
-            value={bizNumber}
-            onChange={handleBizNumberChange}
-            maxLength={12}
-          />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            사업자등록번호 <span className="text-error-500">*</span>
+          </label>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Input
+                placeholder="000-00-00000"
+                value={bizNumber}
+                onChange={handleBizNumberChange}
+                maxLength={12}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleVerifyBizNumber}
+              disabled={bizNumber.replace(/\D/g, '').length !== 10 || verificationStatus === 'loading'}
+              className="whitespace-nowrap"
+            >
+              {verificationStatus === 'loading' ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                '검증'
+              )}
+            </Button>
+          </div>
+
+          <div className="mt-2">
+            {renderVerificationStatus()}
+          </div>
+
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
             <FileText size={12} />
-            선택 사항입니다. 나중에 설정에서 입력할 수 있습니다.
+            사업자등록번호는 필수 항목입니다. 국세청에 등록된 유효한 번호를 입력해주세요.
           </p>
         </div>
 
@@ -128,6 +252,7 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
         <Button
           onClick={handleSubmit}
           isLoading={isLoading}
+          disabled={!isBusinessVerified}
           className="min-w-[120px]"
         >
           다음

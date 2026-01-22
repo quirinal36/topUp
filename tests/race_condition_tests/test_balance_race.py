@@ -375,18 +375,91 @@ class TestBalanceReconciliation:
                 tx_data = tx_response.json()
 
                 # 거래 합계 계산
+                # CANCEL 트랜잭션의 원본을 추적하기 위해 모든 트랜잭션을 분석
                 calculated_balance = 0
                 transactions = tx_data.get("transactions", [])
-                for tx in transactions:
-                    if tx["type"] == "CHARGE":
-                        calculated_balance += tx["amount"]
-                    elif tx["type"] == "DEDUCT":
-                        calculated_balance -= tx["amount"]
-                    elif tx["type"] == "CANCEL":
-                        # CANCEL은 원본 거래 유형에 따라 다름
-                        # 간단화를 위해 거래 내역에서 직접 추적하지 않음
-                        # (실제로는 원본 거래 조회 필요)
-                        pass
+
+                # 트랜잭션을 시간순으로 정렬 (오래된 것 먼저)
+                sorted_transactions = sorted(transactions, key=lambda x: x["created_at"])
+
+                # 원본 거래 매칭을 위한 자료구조
+                # {amount: [(tx, index)]} - 같은 금액의 CHARGE/DEDUCT를 금액별로 그룹화
+                charge_by_amount = {}  # 아직 취소되지 않은 CHARGE
+                deduct_by_amount = {}  # 아직 취소되지 않은 DEDUCT
+
+                # CANCEL 트랜잭션과 원본 유형 매핑
+                cancel_to_original_type = {}  # {cancel_tx_id: "CHARGE" or "DEDUCT"}
+
+                # 시간순으로 처리하면서 CANCEL의 원본 추적
+                for tx in sorted_transactions:
+                    tx_type = tx["type"]
+                    amount = tx["amount"]
+                    tx_id = tx["id"]
+                    note = tx.get("note") or ""
+
+                    if tx_type == "CHARGE":
+                        # "[취소됨]" 마커가 없는 CHARGE만 후보로 등록
+                        if "[취소됨]" not in note:
+                            if amount not in charge_by_amount:
+                                charge_by_amount[amount] = []
+                            charge_by_amount[amount].append(tx)
+
+                    elif tx_type == "DEDUCT":
+                        # "[취소됨]" 마커가 없는 DEDUCT만 후보로 등록
+                        if "[취소됨]" not in note:
+                            if amount not in deduct_by_amount:
+                                deduct_by_amount[amount] = []
+                            deduct_by_amount[amount].append(tx)
+
+                    elif tx_type == "CANCEL":
+                        # CANCEL의 원본 찾기: 같은 금액의 가장 최근 CHARGE 또는 DEDUCT
+                        # 우선순위: 1) "[취소됨]" 마커가 있는 원본, 2) 시간상 가장 가까운 원본
+
+                        # 먼저 "[취소됨]" 마커로 매칭된 원본이 있는지 확인
+                        found_original = False
+                        for check_tx in sorted_transactions:
+                            check_note = check_tx.get("note") or ""
+                            if (check_tx["amount"] == amount and
+                                check_tx["type"] in ("CHARGE", "DEDUCT") and
+                                "[취소됨]" in check_note):
+                                # 매칭된 원본 발견
+                                cancel_to_original_type[tx_id] = check_tx["type"]
+                                found_original = True
+                                break
+
+                        if not found_original:
+                            # "[취소됨]" 마커가 없으면, 같은 금액의 후보 중 선택
+                            # CHARGE를 먼저 확인 (일반적으로 충전 취소가 더 흔함)
+                            if amount in charge_by_amount and charge_by_amount[amount]:
+                                cancel_to_original_type[tx_id] = "CHARGE"
+                                charge_by_amount[amount].pop(0)  # 사용된 후보 제거
+                            elif amount in deduct_by_amount and deduct_by_amount[amount]:
+                                cancel_to_original_type[tx_id] = "DEDUCT"
+                                deduct_by_amount[amount].pop(0)  # 사용된 후보 제거
+                            else:
+                                # 매칭 실패 - 경고 출력
+                                print(f"  경고: CANCEL 트랜잭션 매칭 실패 - "
+                                      f"ID: {tx_id}, 금액: {amount:,}")
+
+                # 잔액 계산
+                for tx in sorted_transactions:
+                    tx_type = tx["type"]
+                    amount = tx["amount"]
+                    tx_id = tx["id"]
+
+                    if tx_type == "CHARGE":
+                        calculated_balance += amount
+                    elif tx_type == "DEDUCT":
+                        calculated_balance -= amount
+                    elif tx_type == "CANCEL":
+                        original_type = cancel_to_original_type.get(tx_id)
+                        if original_type == "CHARGE":
+                            # 충전 취소 = 잔액 감소
+                            calculated_balance -= amount
+                        elif original_type == "DEDUCT":
+                            # 차감 취소 = 잔액 증가
+                            calculated_balance += amount
+                        # 매칭 실패한 경우는 위에서 이미 경고 출력됨
 
                 # 불일치 확인
                 if stored_balance != calculated_balance:

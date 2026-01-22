@@ -16,11 +16,80 @@ from ..schemas.onboarding import (
     CustomerImportRequest,
     CustomerImportResponse,
     OnboardingStatusResponse,
+    BusinessNumberVerifyRequest,
+    BusinessNumberVerifyResponse,
+    BusinessNumberCheckDuplicateResponse,
+)
+from ..services.business_verification_service import (
+    verify_business_number,
+    validate_business_number_format,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/onboarding", tags=["온보딩"])
+
+
+@router.post("/verify-business-number", response_model=BusinessNumberVerifyResponse)
+async def verify_business_number_endpoint(
+    data: BusinessNumberVerifyRequest,
+):
+    """사업자등록번호 유효성 검증 (국세청 API)"""
+    import re
+    digits = re.sub(r'[^0-9]', '', data.business_number)
+
+    if len(digits) != 10:
+        return BusinessNumberVerifyResponse(
+            is_valid=False,
+            status_code="",
+            status_name="",
+            tax_type="",
+            message="사업자등록번호는 10자리 숫자여야 합니다"
+        )
+
+    result = await verify_business_number(digits)
+
+    return BusinessNumberVerifyResponse(
+        is_valid=result.is_valid,
+        status_code=result.status_code,
+        status_name=result.status_name,
+        tax_type=result.tax_type,
+        message=result.message
+    )
+
+
+@router.get("/check-business-number/{business_number}", response_model=BusinessNumberCheckDuplicateResponse)
+async def check_business_number_duplicate(
+    business_number: str,
+    shop_id: str = Depends(get_current_shop)
+):
+    """사업자등록번호 중복 확인 (현재 상점 제외)"""
+    import re
+    admin_db = get_supabase_admin_client()
+
+    # 숫자만 추출하고 포맷팅
+    digits = re.sub(r'[^0-9]', '', business_number)
+
+    if len(digits) != 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="사업자등록번호는 10자리 숫자여야 합니다"
+        )
+
+    # xxx-xx-xxxxx 포맷
+    formatted = f"{digits[:3]}-{digits[3:5]}-{digits[5:]}"
+
+    # 중복 확인 (현재 상점 제외)
+    result = admin_db.table("shops").select("id").eq(
+        "business_number", formatted
+    ).neq("id", shop_id).maybe_single().execute()
+
+    is_duplicate = result.data is not None
+
+    return BusinessNumberCheckDuplicateResponse(
+        is_duplicate=is_duplicate,
+        message="이미 등록된 사업자등록번호입니다" if is_duplicate else "사용 가능한 사업자등록번호입니다"
+    )
 
 
 @router.get("/status", response_model=OnboardingStatusResponse)
@@ -66,15 +135,25 @@ async def complete_step1(
     shop_id: str = Depends(get_current_shop)
 ):
     """Step 1: 상점 기본 정보 저장"""
+    import re
     admin_db = get_supabase_admin_client()
+
+    # 사업자등록번호 중복 확인
+    duplicate_check = admin_db.table("shops").select("id").eq(
+        "business_number", data.business_number
+    ).neq("id", shop_id).maybe_single().execute()
+
+    if duplicate_check.data is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 등록된 사업자등록번호입니다"
+        )
 
     update_data = {
         "name": data.name,
+        "business_number": data.business_number,
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
-
-    if data.business_number is not None:
-        update_data["business_number"] = data.business_number
 
     result = admin_db.table("shops").update(update_data).eq("id", shop_id).execute()
 
@@ -84,7 +163,7 @@ async def complete_step1(
             detail="상점 정보 저장에 실패했습니다"
         )
 
-    logger.info(f"[ONBOARDING] Step 1 완료 - shop_id: {shop_id[:8]}...")
+    logger.info(f"[ONBOARDING] Step 1 완료 - shop_id: {shop_id[:8]}..., business_number: {data.business_number[:7]}***")
 
     return {"message": "상점 정보가 저장되었습니다"}
 
