@@ -19,27 +19,26 @@ const navItems = [
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   return (
     <>
-      {/* 모바일 오버레이 */}
+      {/* 오버레이 - 모든 화면 크기에서 적용 */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40"
           onClick={onClose}
         />
       )}
 
-      {/* 사이드바 */}
+      {/* 사이드바 - 기본적으로 숨김, 버튼으로 열기 */}
       <aside
         className={clsx(
           'fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 z-50',
           'dark:bg-[#2d2420] dark:border-primary-800/30',
-          'lg:translate-x-0 lg:static lg:z-auto',
           'transition-transform duration-300',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* 모바일 닫기 버튼 */}
-        <div className="flex items-center justify-between p-4 lg:hidden">
-          <span className="text-lg font-semibold">메뉴</span>
+        {/* 닫기 버튼 */}
+        <div className="flex items-center justify-between p-4">
+          <span className="text-lg font-semibold text-gray-900 dark:text-white">메뉴</span>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="w-5 h-5" />
           </Button>
