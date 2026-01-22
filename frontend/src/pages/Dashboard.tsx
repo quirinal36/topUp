@@ -102,6 +102,36 @@ export default function Dashboard() {
     }
   };
 
+  // 낙관적 업데이트: 즉시 UI에 잔액 변경 반영
+  const handleOptimisticUpdate = useCallback((customerId: string, amountChange: number) => {
+    // 고객 목록 업데이트
+    setCustomers(prev => prev.map(c =>
+      c.id === customerId
+        ? { ...c, current_balance: c.current_balance + amountChange }
+        : c
+    ));
+
+    // 선택된 고객 업데이트
+    setSelectedCustomer(prev =>
+      prev && prev.id === customerId
+        ? { ...prev, current_balance: prev.current_balance + amountChange }
+        : prev
+    );
+
+    // 총 예치금 업데이트
+    setSummary(prev =>
+      prev
+        ? { ...prev, total_balance: prev.total_balance + amountChange }
+        : prev
+    );
+  }, []);
+
+  // 롤백: API 실패 시 원래 값으로 복구
+  const handleRollback = useCallback((customerId: string, amountChange: number) => {
+    // amountChange를 반대로 적용하여 롤백
+    handleOptimisticUpdate(customerId, -amountChange);
+  }, [handleOptimisticUpdate]);
+
   const handleTransactionSuccess = async () => {
     // 선택된 고객 ID를 저장
     const selectedId = selectedCustomer?.id;
@@ -447,6 +477,8 @@ export default function Dashboard() {
             customerName={selectedCustomer.name}
             currentBalance={selectedCustomer.current_balance}
             onSuccess={handleTransactionSuccess}
+            onOptimisticUpdate={handleOptimisticUpdate}
+            onRollback={handleRollback}
           />
           <DeductModal
             isOpen={isDeductModalOpen}
@@ -457,6 +489,8 @@ export default function Dashboard() {
             customerName={selectedCustomer.name}
             currentBalance={selectedCustomer.current_balance}
             onSuccess={handleTransactionSuccess}
+            onOptimisticUpdate={handleOptimisticUpdate}
+            onRollback={handleRollback}
           />
         </>
       )}

@@ -19,6 +19,8 @@ interface DeductModalProps {
   customerName: string;
   currentBalance: number;
   onSuccess: () => void;
+  onOptimisticUpdate?: (customerId: string, amountChange: number) => void;
+  onRollback?: (customerId: string, amountChange: number) => void;
 }
 
 export default function DeductModal({
@@ -28,6 +30,8 @@ export default function DeductModal({
   customerName,
   currentBalance,
   onSuccess,
+  onOptimisticUpdate,
+  onRollback,
 }: DeductModalProps) {
   const toast = useToast();
   const [amount, setAmount] = useState('');
@@ -115,26 +119,39 @@ export default function DeductModal({
       return;
     }
 
+    // 1. 즉시 로딩 상태로 전환
     setIsLoading(true);
     setError('');
 
+    // 2. 낙관적 업데이트: 즉시 UI 반영 (차감은 음수)
+    if (onOptimisticUpdate) {
+      onOptimisticUpdate(customerId, -amountNum);
+    }
+
+    // 3. 즉시 성공 피드백 (사용자 체감 속도 향상)
+    audioFeedback.playSuccess();
+    toast.success(`${customerName}님의 ${amountNum.toLocaleString()}원이 사용되었습니다`);
+    handleClose();
+
+    // 4. 백그라운드에서 API 호출
     try {
       await deduct({
         customer_id: customerId,
         amount: amountNum,
         note: note || undefined,
       });
-      audioFeedback.playSuccess();
-      toast.success(`${customerName}님의 ${amountNum.toLocaleString()}원이 사용되었습니다`);
+      // API 성공: 백그라운드에서 전체 데이터 동기화
       onSuccess();
-      handleClose();
     } catch (err: any) {
+      // API 실패: 롤백
       const errorMsg = err.response?.data?.detail || '차감에 실패했습니다';
       audioFeedback.playError();
-      toast.error(errorMsg);
-      setError(errorMsg);
-    } finally {
-      setIsLoading(false);
+      toast.error(`${errorMsg} 잔액이 원래대로 복구됩니다.`);
+      if (onRollback) {
+        onRollback(customerId, -amountNum);
+      }
+      // 다시 데이터 동기화
+      onSuccess();
     }
   };
 

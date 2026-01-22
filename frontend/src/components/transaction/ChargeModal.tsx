@@ -18,6 +18,8 @@ interface ChargeModalProps {
   customerName: string;
   currentBalance?: number;
   onSuccess: () => void;
+  onOptimisticUpdate?: (customerId: string, amountChange: number) => void;
+  onRollback?: (customerId: string, amountChange: number) => void;
 }
 
 export default function ChargeModal({
@@ -27,6 +29,8 @@ export default function ChargeModal({
   customerName,
   currentBalance = 0,
   onSuccess,
+  onOptimisticUpdate,
+  onRollback,
 }: ChargeModalProps) {
   const toast = useToast();
   const [actualPayment, setActualPayment] = useState('');
@@ -84,9 +88,23 @@ export default function ChargeModal({
       return;
     }
 
+    const chargeAmount = totalAmount;
+
+    // 1. 즉시 로딩 상태로 전환하고 모달 닫기
     setIsLoading(true);
     setError('');
 
+    // 2. 낙관적 업데이트: 즉시 UI 반영
+    if (onOptimisticUpdate) {
+      onOptimisticUpdate(customerId, chargeAmount);
+    }
+
+    // 3. 즉시 성공 피드백 (사용자 체감 속도 향상)
+    audioFeedback.playSuccess();
+    toast.success(`${customerName}님에게 ${chargeAmount.toLocaleString()}원이 충전되었습니다`);
+    handleClose();
+
+    // 4. 백그라운드에서 API 호출
     try {
       await charge({
         customer_id: customerId,
@@ -95,16 +113,17 @@ export default function ChargeModal({
         payment_method: paymentMethod,
         note: note || undefined,
       });
-      audioFeedback.playSuccess();
-      toast.success(`${customerName}님에게 ${totalAmount.toLocaleString()}원이 충전되었습니다`);
+      // API 성공: 백그라운드에서 전체 데이터 동기화
       onSuccess();
-      handleClose();
     } catch (err) {
+      // API 실패: 롤백
       audioFeedback.playError();
-      toast.error('충전에 실패했습니다');
-      setError('충전에 실패했습니다');
-    } finally {
-      setIsLoading(false);
+      toast.error('충전에 실패했습니다. 잔액이 원래대로 복구됩니다.');
+      if (onRollback) {
+        onRollback(customerId, chargeAmount);
+      }
+      // 다시 데이터 동기화
+      onSuccess();
     }
   };
 
