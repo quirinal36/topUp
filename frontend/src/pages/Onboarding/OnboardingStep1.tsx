@@ -1,20 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Store, FileText, ArrowRight, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Store, FileText, ArrowRight, CheckCircle, XCircle, Loader2, LogIn, KeyRound } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 import { useAuthStore } from '../../stores/authStore';
-import { updateStep1, verifyBusinessNumber, checkBusinessNumberDuplicate } from '../../api/onboarding';
+import { updateStep1, verifyBusinessNumber, checkBusinessNumberDuplicate, BusinessDuplicateResponse } from '../../api/onboarding';
 import { useToast } from '../../contexts/ToastContext';
 
 interface OnboardingStep1Props {
   onNext: () => void;
 }
 
-type VerificationStatus = 'idle' | 'loading' | 'success' | 'error';
+type VerificationStatus = 'idle' | 'loading' | 'success' | 'error' | 'duplicate';
 
 export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
+  const navigate = useNavigate();
   const toast = useToast();
   const { shopName: authShopName } = useAuthStore();
   const { shopName, businessNumber, setStep1Data } = useOnboardingStore();
@@ -27,7 +29,14 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
   // 사업자등록번호 검증 상태
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('idle');
   const [verificationMessage, setVerificationMessage] = useState('');
+  const [verificationTaxType, setVerificationTaxType] = useState('');
   const [isBusinessVerified, setIsBusinessVerified] = useState(false);
+
+  // 중복 시 기존 사용자 정보
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    username?: string;
+    shopName?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!shopName && authShopName) {
@@ -53,7 +62,9 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
       // 검증 상태 초기화
       setVerificationStatus('idle');
       setVerificationMessage('');
+      setVerificationTaxType('');
       setIsBusinessVerified(false);
+      setDuplicateInfo(null);
     }
   };
 
@@ -69,7 +80,9 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
 
     setVerificationStatus('loading');
     setVerificationMessage('');
+    setVerificationTaxType('');
     setError('');
+    setDuplicateInfo(null);
 
     try {
       // 1. 국세청 API로 유효성 검증
@@ -83,22 +96,23 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
       }
 
       // 2. 중복 검사
-      const duplicateResult = await checkBusinessNumberDuplicate(bizNumber);
+      const duplicateResult: BusinessDuplicateResponse = await checkBusinessNumberDuplicate(bizNumber);
 
       if (duplicateResult.is_duplicate) {
-        setVerificationStatus('error');
+        setVerificationStatus('duplicate');
         setVerificationMessage(duplicateResult.message);
+        setDuplicateInfo({
+          username: duplicateResult.existing_username,
+          shopName: duplicateResult.existing_shop_name,
+        });
         setIsBusinessVerified(false);
         return;
       }
 
-      // 검증 성공
+      // 검증 성공 - 과세유형 정보 표시
       setVerificationStatus('success');
-      setVerificationMessage(
-        verifyResult.status_name
-          ? `${verifyResult.message} (${verifyResult.status_name})`
-          : verifyResult.message
-      );
+      setVerificationMessage(verifyResult.message);
+      setVerificationTaxType(verifyResult.tax_type || '');
       setIsBusinessVerified(true);
     } catch (err: unknown) {
       setVerificationStatus('error');
@@ -153,6 +167,14 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
     }
   };
 
+  const handleGoToLogin = () => {
+    navigate('/login');
+  };
+
+  const handleGoToForgotPassword = () => {
+    navigate('/forgot-password');
+  };
+
   const renderVerificationStatus = () => {
     switch (verificationStatus) {
       case 'loading':
@@ -164,9 +186,16 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
         );
       case 'success':
         return (
-          <div className="flex items-center gap-2 text-success-600 dark:text-success-400">
-            <CheckCircle size={16} />
-            <span className="text-sm">{verificationMessage}</span>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-success-600 dark:text-success-400">
+              <CheckCircle size={16} />
+              <span className="text-sm">{verificationMessage}</span>
+            </div>
+            {verificationTaxType && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 ml-6">
+                과세유형: {verificationTaxType}
+              </p>
+            )}
           </div>
         );
       case 'error':
@@ -174,6 +203,54 @@ export default function OnboardingStep1({ onNext }: OnboardingStep1Props) {
           <div className="flex items-center gap-2 text-error-600 dark:text-error-400">
             <XCircle size={16} />
             <span className="text-sm">{verificationMessage}</span>
+          </div>
+        );
+      case 'duplicate':
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-warning-600 dark:text-warning-400">
+              <XCircle size={16} />
+              <span className="text-sm">{verificationMessage}</span>
+            </div>
+            {duplicateInfo && (
+              <div className="bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg p-4">
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                  {duplicateInfo.shopName && (
+                    <>
+                      상점명: <strong>{duplicateInfo.shopName}</strong>
+                      <br />
+                    </>
+                  )}
+                  {duplicateInfo.username && (
+                    <>
+                      사용자 ID: <strong>{duplicateInfo.username}</strong>
+                    </>
+                  )}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={handleGoToLogin}
+                    className="flex items-center gap-1"
+                  >
+                    <LogIn size={14} />
+                    로그인하기
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleGoToForgotPassword}
+                    className="flex items-center gap-1"
+                  >
+                    <KeyRound size={14} />
+                    비밀번호 찾기
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         );
       default:
