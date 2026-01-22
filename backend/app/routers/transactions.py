@@ -28,7 +28,7 @@ async def get_transactions(
     type: Optional[TransactionType] = Query(None, description="거래 유형으로 필터링"),
     start_date: Optional[date] = Query(None, description="시작일 (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="종료일 (YYYY-MM-DD)"),
-    search: Optional[str] = Query(None, description="고객 이름 검색"),
+    search: Optional[str] = Query(None, description="고객 이름 또는 전화번호 뒷자리 검색"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     shop_id: str = Depends(get_current_shop)
@@ -37,15 +37,21 @@ async def get_transactions(
     # RLS 우회를 위해 admin 클라이언트 사용
     db = get_supabase_admin_client()
 
-    # 해당 상점의 고객 조회 (이름 포함)
-    customers_query = db.table("customers").select("id, name").eq("shop_id", shop_id)
-
-    # 고객 이름 검색
-    if search:
-        customers_query = customers_query.ilike("name", f"%{search}%")
-
+    # 해당 상점의 고객 조회 (이름, 전화번호 포함)
+    customers_query = db.table("customers").select("id, name, phone_suffix").eq("shop_id", shop_id)
     customers_result = customers_query.execute()
-    customer_map = {c["id"]: c["name"] for c in customers_result.data}
+
+    # 고객 이름 또는 전화번호 뒷자리 검색
+    if search:
+        search_lower = search.lower()
+        filtered_customers = [
+            c for c in customers_result.data
+            if search_lower in c["name"].lower() or search in c.get("phone_suffix", "")
+        ]
+    else:
+        filtered_customers = customers_result.data
+
+    customer_map = {c["id"]: c["name"] for c in filtered_customers}
     customer_ids = list(customer_map.keys())
 
     if not customer_ids:
