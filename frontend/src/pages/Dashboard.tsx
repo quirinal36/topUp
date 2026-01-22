@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Wallet, Search, Plus, Minus, UserPlus, Clock, Coffee } from 'lucide-react';
 import { clsx } from 'clsx';
 import Button from '../components/common/Button';
@@ -40,11 +40,16 @@ export default function Dashboard() {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원';
   };
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (searchQuery?: string, pageNum?: number) => {
     try {
+      const currentPage = pageNum ?? page;
       const [summaryData, customerData, transactionData] = await Promise.all([
         getDashboardSummary(),
-        getCustomers({ page, page_size: pageSize }),
+        getCustomers({
+          page: searchQuery ? 1 : currentPage,
+          page_size: pageSize,
+          query: searchQuery || undefined
+        }),
         getTransactions({ page: 1, page_size: 5 }),
       ]);
       setSummary(summaryData);
@@ -65,16 +70,15 @@ export default function Dashboard() {
     audioFeedback.init();
   }, [fetchData]);
 
-  // 전화번호 뒷자리로 필터링된 고객
-  const filteredCustomers = useMemo(() => {
-    if (!phoneDigits) return customers;
-    return customers.filter(c => c.phone_suffix.includes(phoneDigits));
-  }, [customers, phoneDigits]);
+  // 서버 사이드 검색으로 변경 - 클라이언트 필터링 제거
+  const filteredCustomers = customers;
 
-  // 넘패드 검색
+  // 넘패드 검색 - 서버 사이드 검색 수행
   const handleNumpadChange = (value: string) => {
     setPhoneDigits(value);
     audioFeedback.playTap();
+    // 서버 API로 검색 (즉시 검색)
+    fetchData(value);
   };
 
   const totalPages = Math.ceil(total / pageSize);
@@ -163,12 +167,16 @@ export default function Dashboard() {
 
   const handleAddCustomer = async () => {
     if (!newCustomerName.trim()) return;
+    if (!newCustomerPhone || newCustomerPhone.length !== 4 || !/^\d{4}$/.test(newCustomerPhone)) {
+      audioFeedback.playError();
+      return;
+    }
 
     setIsAddingCustomer(true);
     try {
       await createCustomer({
         name: newCustomerName.trim(),
-        phone_suffix: newCustomerPhone.trim() || '0000',
+        phone_suffix: newCustomerPhone,
       });
       audioFeedback.playSuccess();
       setNewCustomerName('');
@@ -257,7 +265,10 @@ export default function Dashboard() {
                   placeholder="뒷자리 4자리 입력"
                   value={phoneDigits}
                   readOnly
-                  onClear={() => setPhoneDigits('')}
+                  onClear={() => {
+                    setPhoneDigits('');
+                    fetchData('');
+                  }}
                   className="text-center text-2xl font-bold tracking-widest"
                 />
               </div>
@@ -525,6 +536,7 @@ export default function Dashboard() {
             maxLength={4}
             value={newCustomerPhone}
             onChange={(e) => setNewCustomerPhone(e.target.value.replace(/\D/g, ''))}
+            required
           />
           <div className="flex gap-3 pt-2">
             <Button
@@ -543,7 +555,7 @@ export default function Dashboard() {
               size="pos-lg"
               onClick={handleAddCustomer}
               isLoading={isAddingCustomer}
-              disabled={!newCustomerName.trim()}
+              disabled={!newCustomerName.trim() || newCustomerPhone.length !== 4}
               className="flex-[2]"
             >
               등록하기
