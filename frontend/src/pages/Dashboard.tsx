@@ -19,13 +19,15 @@ export default function Dashboard() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 30;
 
-  // Refs for customer cards
+  // Refs for customer cards and debounce
   const customerCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Modal states
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -40,6 +42,25 @@ export default function Dashboard() {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원';
   };
 
+  // 고객 검색만 수행 (빠른 응답)
+  const searchCustomers = useCallback(async (searchQuery: string) => {
+    setIsSearching(true);
+    try {
+      const customerData = await getCustomers({
+        page: 1,
+        page_size: pageSize,
+        query: searchQuery || undefined
+      });
+      setCustomers(customerData.customers);
+      setTotal(customerData.total);
+    } catch (error) {
+      console.error('Failed to search customers:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // 전체 데이터 로드 (초기 로드, 거래 후 갱신)
   const fetchData = useCallback(async (searchQuery?: string, pageNum?: number) => {
     try {
       const currentPage = pageNum ?? page;
@@ -60,6 +81,7 @@ export default function Dashboard() {
       console.error('Failed to fetch data:', error);
     } finally {
       setIsLoading(false);
+      setIsSearching(false);
     }
   }, [page]);
 
@@ -73,13 +95,31 @@ export default function Dashboard() {
   // 서버 사이드 검색으로 변경 - 클라이언트 필터링 제거
   const filteredCustomers = customers;
 
-  // 넘패드 검색 - 서버 사이드 검색 수행
+  // 넘패드 검색 - 디바운스 적용 (150ms)
   const handleNumpadChange = (value: string) => {
     setPhoneDigits(value);
     audioFeedback.playTap();
-    // 서버 API로 검색 (즉시 검색)
-    fetchData(value);
+
+    // 이전 타이머 취소
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // 디바운스: 150ms 후 검색 실행
+    setIsSearching(true);
+    searchTimeoutRef.current = setTimeout(() => {
+      searchCustomers(value);
+    }, 150);
   };
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -267,7 +307,10 @@ export default function Dashboard() {
                   readOnly
                   onClear={() => {
                     setPhoneDigits('');
-                    fetchData('');
+                    if (searchTimeoutRef.current) {
+                      clearTimeout(searchTimeoutRef.current);
+                    }
+                    searchCustomers('');
                   }}
                   className="text-center text-2xl font-bold tracking-widest"
                 />
@@ -287,12 +330,20 @@ export default function Dashboard() {
           {/* 고객 목록 - POS 스타일 */}
           <div className="bg-white dark:bg-[#2d2420] rounded-xl p-4 shadow-pos-card flex-1 overflow-hidden">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 {phoneDigits ? `검색 결과 (${filteredCustomers.length}명)` : `전체 고객 (${total}명)`}
+                {isSearching && (
+                  <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                )}
               </h3>
             </div>
 
-            {filteredCustomers.length === 0 ? (
+            {isSearching && filteredCustomers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
+                <p className="mt-4 text-gray-500 dark:text-gray-400">검색 중...</p>
+              </div>
+            ) : filteredCustomers.length === 0 ? (
               <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 <Coffee className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p className="text-lg">
@@ -300,7 +351,10 @@ export default function Dashboard() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[calc(100vh-500px)] overflow-y-auto" data-testid="search-results">
+              <div className={clsx(
+                "space-y-3 max-h-[calc(100vh-500px)] overflow-y-auto transition-opacity duration-150",
+                isSearching && "opacity-50"
+              )} data-testid="search-results">
                 {filteredCustomers.map((customer) => (
                   <CustomerCard
                     key={customer.id}
