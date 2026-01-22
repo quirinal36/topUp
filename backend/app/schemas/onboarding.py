@@ -6,16 +6,37 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+class BusinessNumberVerifyRequest(BaseModel):
+    """사업자등록번호 검증 요청"""
+    business_number: str = Field(..., description="사업자등록번호")
+
+
+class BusinessNumberVerifyResponse(BaseModel):
+    """사업자등록번호 검증 응답"""
+    is_valid: bool = Field(..., description="유효 여부")
+    status_code: str = Field("", description="상태 코드 (01: 계속사업자, 02: 휴업, 03: 폐업)")
+    status_name: str = Field("", description="상태명")
+    tax_type: str = Field("", description="과세유형")
+    message: str = Field(..., description="결과 메시지")
+
+
+class BusinessNumberCheckDuplicateResponse(BaseModel):
+    """사업자등록번호 중복 확인 응답"""
+    is_duplicate: bool = Field(..., description="중복 여부")
+    message: str = Field(..., description="결과 메시지")
+
+
 class ShopOnboardingStep1(BaseModel):
     """Step 1: 상점 기본 정보"""
     name: str = Field(..., min_length=1, max_length=100, description="상점명")
-    business_number: Optional[str] = Field(None, description="사업자등록번호 (xxx-xx-xxxxx)")
+    business_number: str = Field(..., description="사업자등록번호 (xxx-xx-xxxxx)")
+    is_business_verified: bool = Field(default=False, description="사업자등록번호 검증 완료 여부")
 
     @field_validator('business_number')
     @classmethod
-    def validate_business_number(cls, v: Optional[str]) -> Optional[str]:
-        if v is None or v == '':
-            return None
+    def validate_business_number(cls, v: str) -> str:
+        if not v or v.strip() == '':
+            raise ValueError('사업자등록번호는 필수입니다')
         # 숫자만 추출
         digits = re.sub(r'[^0-9]', '', v)
         if len(digits) != 10:

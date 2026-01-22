@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     nice_site_code: str = ""  # NICE 사이트 코드 (프로덕션용)
     nice_site_pw: str = ""  # NICE 사이트 비밀번호 (프로덕션용)
 
+    # 국세청 사업자등록정보 조회 API (공공데이터포털)
+    nts_api_key: str = ""  # 공공데이터포털에서 발급받은 디코딩 인증키
+
     @property
     def cors_origins_list(self) -> List[str]:
         """CORS 허용 도메인 리스트 반환"""
