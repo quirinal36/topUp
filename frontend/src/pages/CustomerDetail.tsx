@@ -290,10 +290,11 @@ export default function CustomerDetail() {
             onChange={(e) => setEditName(e.target.value)}
           />
           <Input
-            label="연락처 뒷자리"
+            label="연락처 뒷자리 (4자리)"
             maxLength={4}
             value={editPhone}
             onChange={(e) => setEditPhone(e.target.value.replace(/\D/g, ''))}
+            required
           />
 
           {editError && <p className="text-error-500 text-sm">{editError}</p>}

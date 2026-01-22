@@ -273,6 +273,7 @@ export default function Customers() {
             maxLength={4}
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, ''))}
+            required
           />
 
           {error && <p className="text-error-500 text-base font-medium">{error}</p>}
