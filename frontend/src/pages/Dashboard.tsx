@@ -181,9 +181,14 @@ export default function Dashboard() {
     const selectedId = selectedCustomer?.id;
 
     try {
+      // 검색어가 있으면 검색 결과 유지, 없으면 전체 목록
       const [summaryData, customerData, transactionData] = await Promise.all([
         getDashboardSummary(),
-        getCustomers({ page, page_size: pageSize }),
+        getCustomers({
+          page: phoneDigits ? 1 : page,
+          page_size: pageSize,
+          query: phoneDigits || undefined
+        }),
         getTransactions({ page: 1, page_size: 5 }),
       ]);
       setSummary(summaryData);
