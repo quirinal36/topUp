@@ -32,9 +32,9 @@ const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, 
             : 'bg-white border-2 border-gray-100 shadow-pos-card hover:border-primary-200 dark:bg-[#2d2420] dark:border-primary-800/30 dark:hover:border-primary-700'
         )}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
           <div className={clsx(
-            'w-14 h-14 rounded-full flex items-center justify-center',
+            'w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0',
             selected
               ? 'bg-primary-500 dark:bg-primary-600'
               : 'bg-primary-100 dark:bg-primary-900/30'
@@ -46,9 +46,9 @@ const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, 
                 : 'text-primary-600 dark:text-primary-400'
             )} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className={clsx(
-              'text-xl font-bold',
+              'text-xl font-bold truncate',
               selected
                 ? 'text-primary-700 dark:text-primary-300'
                 : 'text-gray-900 dark:text-white'
@@ -56,7 +56,7 @@ const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, 
               {customer.name}
             </h3>
             <div className="flex items-center gap-2 mt-1">
-              <Phone className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+              <Phone className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
               <span className="text-base text-gray-500 dark:text-gray-400">
                 ***-****-<span className="font-bold text-primary-600 dark:text-primary-400">{customer.phone_suffix}</span>
               </span>
@@ -64,7 +64,7 @@ const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, 
           </div>
         </div>
 
-        <div className="text-right">
+        <div className="text-right flex-shrink-0 ml-3">
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">잔액</p>
           <p
             data-testid="customer-balance"
@@ -86,22 +86,22 @@ const CustomerCard = forwardRef<HTMLDivElement, CustomerCardProps>(({ customer, 
   return (
     <Card hoverable onClick={onClick} data-testid="customer-item">
       <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
             <User className="w-6 h-6 text-primary-600 dark:text-primary-400" />
           </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-gray-900 dark:text-white truncate">
               {customer.name}
             </h3>
             <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-              <Phone className="w-3 h-3" />
+              <Phone className="w-3 h-3 flex-shrink-0" />
               <span>***-****-{customer.phone_suffix}</span>
             </div>
           </div>
         </div>
 
-        <div className="text-right">
+        <div className="text-right flex-shrink-0 ml-3">
           <p className="text-sm text-gray-500 dark:text-gray-400">잔액</p>
           <p className={`font-bold ${customer.current_balance >= 0 ? 'text-primary-600 dark:text-primary-400' : 'text-error-500'}`}>
             {formatCurrency(customer.current_balance)}
