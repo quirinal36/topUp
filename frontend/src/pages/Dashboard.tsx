@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Wallet, Search, Plus, Minus, UserPlus, Clock, Coffee } from 'lucide-react';
+import { Wallet, Search, Plus, Minus, UserPlus, Clock, Coffee, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
@@ -497,35 +497,52 @@ export default function Dashboard() {
                 {recentTransactions.map((tx) => (
                   <div
                     key={tx.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-primary-900/10"
+                    className={clsx(
+                      "flex items-center justify-between p-3 rounded-lg",
+                      tx.is_cancelled
+                        ? "bg-gray-100 dark:bg-gray-800/50 opacity-60"
+                        : "bg-gray-50 dark:bg-primary-900/10"
+                    )}
                   >
                     <div className="flex items-center gap-3">
                       <div className={clsx(
                         'w-8 h-8 rounded-full flex items-center justify-center',
-                        tx.type === 'CHARGE'
-                          ? 'bg-success-100 dark:bg-success-900/30'
-                          : 'bg-error-100 dark:bg-error-900/30'
+                        tx.is_cancelled
+                          ? 'bg-gray-200 dark:bg-gray-700'
+                          : tx.type === 'CHARGE'
+                            ? 'bg-success-100 dark:bg-success-900/30'
+                            : 'bg-error-100 dark:bg-error-900/30'
                       )}>
-                        {tx.type === 'CHARGE' ? (
+                        {tx.is_cancelled ? (
+                          <X className="w-4 h-4 text-gray-500" />
+                        ) : tx.type === 'CHARGE' ? (
                           <Plus className="w-4 h-4 text-success-600" />
                         ) : (
                           <Minus className="w-4 h-4 text-error-600" />
                         )}
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">
+                        <p className={clsx(
+                          "font-medium text-sm",
+                          tx.is_cancelled
+                            ? "text-gray-500 dark:text-gray-400 line-through"
+                            : "text-gray-900 dark:text-white"
+                        )}>
                           {tx.customer_name}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {formatTimeAgo(tx.created_at)}
+                          {tx.is_cancelled && <span className="ml-1 text-error-500">(취소됨)</span>}
                         </p>
                       </div>
                     </div>
                     <p className={clsx(
                       'font-bold',
-                      tx.type === 'CHARGE'
-                        ? 'text-success-600 dark:text-success-400'
-                        : 'text-error-600 dark:text-error-400'
+                      tx.is_cancelled
+                        ? 'text-gray-400 dark:text-gray-500 line-through'
+                        : tx.type === 'CHARGE'
+                          ? 'text-success-600 dark:text-success-400'
+                          : 'text-error-600 dark:text-error-400'
                     )}>
                       {tx.type === 'CHARGE' ? '+' : '-'}
                       {formatCurrency(tx.type === 'CHARGE' ? (tx.actual_payment || 0) + (tx.service_amount || 0) : tx.amount)}
