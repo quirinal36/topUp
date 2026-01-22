@@ -41,14 +41,18 @@ export default function DeductModal({
   const [menus, setMenus] = useState<Menu[]>([]);
   const [selectedMenuId, setSelectedMenuId] = useState<string>('');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [isLoadingMenus, setIsLoadingMenus] = useState(true);
 
   // 메뉴 목록 불러오기
   useEffect(() => {
     if (isOpen) {
+      setIsLoadingMenus(true);
       getMenus(false).then((response) => {
         setMenus(response.menus);
       }).catch(() => {
         setMenus([]);
+      }).finally(() => {
+        setIsLoadingMenus(false);
       });
       // Initialize audio on modal open
       audioFeedback.init();
@@ -212,7 +216,7 @@ export default function DeductModal({
         )}
 
         {/* 빠른 금액 선택 - POS 스타일 */}
-        {!selectedMenuId && !showCustomInput && (
+        {!isLoadingMenus && !selectedMenuId && !showCustomInput && (
           <div>
             <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
               빠른 선택
