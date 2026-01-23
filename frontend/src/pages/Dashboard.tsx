@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Wallet, Search, Plus, Minus, UserPlus, Clock, BookText, X } from 'lucide-react';
+import { Search, Plus, Minus, UserPlus, Clock, BookText, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
@@ -262,26 +262,6 @@ export default function Dashboard() {
       <div className="flex flex-col tablet-lg:flex-row gap-6 h-full">
         {/* 왼쪽: 고객 검색 및 목록 */}
         <div className="flex-1 tablet-lg:flex-[3] space-y-4">
-          {/* 총 예치금 - 컴팩트 버전 */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl text-white">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                <Wallet className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-primary-100 text-xs">총 예치금</p>
-                <p className="text-xl font-bold">
-                  {formatCurrency(summary?.total_balance || 0)}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-primary-200 text-sm">
-                {summary?.total_customers || 0}명
-              </p>
-            </div>
-          </div>
-
           {/* 검색 영역 - POS 스타일 */}
           <div className="bg-white dark:bg-[#2d2420] rounded-xl p-4 shadow-pos-card">
             <div className="flex items-center justify-between mb-4">
