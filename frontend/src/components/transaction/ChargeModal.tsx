@@ -34,7 +34,6 @@ export default function ChargeModal({
 }: ChargeModalProps) {
   const toast = useToast();
   const [actualPayment, setActualPayment] = useState('');
-  const [serviceAmount, setServiceAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -54,7 +53,7 @@ export default function ChargeModal({
     { value: 'TRANSFER' as const, icon: Building2, label: '이체' },
   ];
 
-  const totalAmount = (parseInt(actualPayment) || 0) + (parseInt(serviceAmount) || 0);
+  const totalAmount = parseInt(actualPayment) || 0;
   const newBalance = currentBalance + totalAmount;
 
   // 빠른 금액 선택
@@ -110,7 +109,7 @@ export default function ChargeModal({
       const result = await charge({
         customer_id: customerId,
         actual_payment: parseInt(actualPayment),
-        service_amount: parseInt(serviceAmount) || 0,
+        service_amount: 0,
         payment_method: paymentMethod,
         note: note || undefined,
       });
@@ -137,7 +136,6 @@ export default function ChargeModal({
 
   const handleClose = () => {
     setActualPayment('');
-    setServiceAmount('');
     setPaymentMethod('CARD');
     setNote('');
     setError('');
@@ -231,16 +229,6 @@ export default function ChargeModal({
             </span>
           </div>
         )}
-
-        {/* 서비스 금액 */}
-        <Input
-          inputSize="pos"
-          label="서비스 금액 (보너스)"
-          type="number"
-          placeholder="0"
-          value={serviceAmount}
-          onChange={(e) => setServiceAmount(e.target.value)}
-        />
 
         {/* 결제 수단 - POS 스타일 */}
         <div>
