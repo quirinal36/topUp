@@ -23,8 +23,7 @@ export default function Dashboard() {
   const [total, setTotal] = useState(0);
   const pageSize = 30;
 
-  // Refs for customer cards and debounce
-  const customerCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Ref for debounce
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Modal states
@@ -134,12 +133,6 @@ export default function Dashboard() {
   const handleCustomerSelect = (customer: Customer) => {
     setSelectedCustomer(customer);
     audioFeedback.playSelect();
-
-    // 선택된 고객 카드로 스크롤
-    const cardElement = customerCardRefs.current.get(customer.id);
-    if (cardElement) {
-      cardElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
   };
 
   // 낙관적 업데이트: 즉시 UI에 잔액 변경 반영
@@ -330,13 +323,6 @@ export default function Dashboard() {
                 {filteredCustomers.map((customer) => (
                   <CustomerCard
                     key={customer.id}
-                    ref={(el) => {
-                      if (el) {
-                        customerCardRefs.current.set(customer.id, el);
-                      } else {
-                        customerCardRefs.current.delete(customer.id);
-                      }
-                    }}
                     customer={customer}
                     variant="pos"
                     selected={selectedCustomer?.id === customer.id}
