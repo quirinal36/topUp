@@ -12,7 +12,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const { shopName, darkMode, toggleDarkMode, logout } = useAuthStore();
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-gray-200 dark:bg-[#2d2420] dark:border-primary-800/30">
+    <header className="bg-white border-b border-gray-200 dark:bg-[#2d2420] dark:border-primary-800/30">
       <div className="flex items-center justify-between h-16 px-4">
         {/* 왼쪽: 메뉴 버튼 & 로고 */}
         <div className="flex items-center gap-3">
