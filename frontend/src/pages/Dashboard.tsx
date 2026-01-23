@@ -8,14 +8,12 @@ import ChargeModal from '../components/transaction/ChargeModal';
 import DeductModal from '../components/transaction/DeductModal';
 import CustomerCard from '../components/customer/CustomerCard';
 import Numpad from '../components/pos/Numpad';
-import { getDashboardSummary } from '../api/dashboard';
 import { getCustomers, createCustomer } from '../api/customers';
 import { getTransactions } from '../api/transactions';
-import { DashboardSummary, Customer, Transaction } from '../types';
+import { Customer, Transaction } from '../types';
 import { audioFeedback } from '../utils/audioFeedback';
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,8 +62,7 @@ export default function Dashboard() {
   const fetchData = useCallback(async (searchQuery?: string, pageNum?: number) => {
     try {
       const currentPage = pageNum ?? page;
-      const [summaryData, customerData, transactionData] = await Promise.all([
-        getDashboardSummary(),
+      const [customerData, transactionData] = await Promise.all([
         getCustomers({
           page: searchQuery ? 1 : currentPage,
           page_size: pageSize,
@@ -73,7 +70,6 @@ export default function Dashboard() {
         }),
         getTransactions({ page: 1, page_size: 5 }),
       ]);
-      setSummary(summaryData);
       setCustomers(customerData.customers);
       setTotal(customerData.total);
       setRecentTransactions(transactionData.transactions);
@@ -161,13 +157,6 @@ export default function Dashboard() {
         ? { ...prev, current_balance: prev.current_balance + amountChange }
         : prev
     );
-
-    // 총 예치금 업데이트
-    setSummary(prev =>
-      prev
-        ? { ...prev, total_balance: prev.total_balance + amountChange }
-        : prev
-    );
   }, []);
 
   // 롤백: API 실패 시 원래 값으로 복구
@@ -182,8 +171,7 @@ export default function Dashboard() {
 
     try {
       // 검색어가 있으면 검색 결과 유지, 없으면 전체 목록
-      const [summaryData, customerData, transactionData] = await Promise.all([
-        getDashboardSummary(),
+      const [customerData, transactionData] = await Promise.all([
         getCustomers({
           page: phoneDigits ? 1 : page,
           page_size: pageSize,
@@ -191,7 +179,6 @@ export default function Dashboard() {
         }),
         getTransactions({ page: 1, page_size: 5 }),
       ]);
-      setSummary(summaryData);
       setCustomers(customerData.customers);
       setTotal(customerData.total);
       setRecentTransactions(transactionData.transactions);
