@@ -10,6 +10,7 @@ import { deduct } from '../../api/transactions';
 import { getMenus } from '../../api/menus';
 import { useToast } from '../../contexts/ToastContext';
 import { audioFeedback } from '../../utils/audioFeedback';
+import { getErrorMessage, isNetworkError, isServerError } from '../../utils/errorHandler';
 import { Menu } from '../../types';
 
 interface DeductModalProps {
@@ -31,7 +32,6 @@ export default function DeductModal({
   currentBalance,
   onSuccess,
   onOptimisticUpdate,
-  onRollback,
 }: DeductModalProps) {
   const toast = useToast();
   const [amount, setAmount] = useState('');
@@ -154,16 +154,18 @@ export default function DeductModal({
 
       // API 성공: 백그라운드에서 전체 데이터 동기화
       onSuccess();
-    } catch (err: any) {
-      // API 실패: 롤백
-      const errorMsg = err.response?.data?.detail || '차감에 실패했습니다';
+      handleClose();
+    } catch (err) {
       audioFeedback.playError();
-      toast.error(`${errorMsg} 잔액이 원래대로 복구됩니다.`);
-      if (onRollback) {
-        onRollback(customerId, -amountNum);
+      // 네트워크/서버 에러는 전역 핸들러가 토스트를 표시하므로 중복 방지
+      if (!isNetworkError(err) && !isServerError(err)) {
+        toast.error(getErrorMessage(err));
       }
-      // 다시 데이터 동기화
-      onSuccess();
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+
+
     }
   };
 

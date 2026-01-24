@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { getCurrentShop } from './api/auth';
-import { ToastProvider } from './contexts/ToastContext';
+import { ToastProvider, useToast } from './contexts/ToastContext';
+import { NetworkStatusProvider } from './contexts/NetworkStatusContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -14,6 +15,7 @@ import Transactions from './pages/Transactions';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
+import NotFound from './pages/NotFound';
 
 // 활동 추적 및 PIN 타임아웃 체크 훅
 function useActivityTracker() {
@@ -49,6 +51,23 @@ function useActivityTracker() {
       });
     };
   }, [isAuthenticated, handleActivity, checkPinTimeout]);
+}
+
+// 서버 에러 감지 및 토스트 표시 훅
+function useServerErrorHandler() {
+  const toast = useToast();
+
+  useEffect(() => {
+    const handleServerError = () => {
+      toast.error('서버 오류가 발생했습니다. 관리자에게 문의해 주세요.', 5000);
+    };
+
+    window.addEventListener('server-error', handleServerError);
+
+    return () => {
+      window.removeEventListener('server-error', handleServerError);
+    };
+  }, [toast]);
 }
 
 // 인증만 확인하는 래퍼 (온보딩 페이지용)
@@ -149,85 +168,88 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function ActivityTrackerWrapper({ children }: { children: React.ReactNode }) {
   useActivityTracker();
+  useServerErrorHandler();
   return <>{children}</>;
 }
 
 function App() {
   return (
     <ToastProvider>
-      <BrowserRouter>
-        <ActivityTrackerWrapper>
-        <Routes>
-        {/* 공개 라우트 */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+      <NetworkStatusProvider>
+        <BrowserRouter>
+          <ActivityTrackerWrapper>
+          <Routes>
+          {/* 공개 라우트 */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* 온보딩 라우트 (인증만 필요, 온보딩 체크 안함) */}
-        <Route
-          path="/onboarding"
-          element={
-            <AuthenticatedOnly>
-              <Onboarding />
-            </AuthenticatedOnly>
-          }
-        />
+          {/* 온보딩 라우트 (인증만 필요, 온보딩 체크 안함) */}
+          <Route
+            path="/onboarding"
+            element={
+              <AuthenticatedOnly>
+                <Onboarding />
+              </AuthenticatedOnly>
+            }
+          />
 
-        {/* 보호된 라우트 */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customers"
-          element={
-            <ProtectedRoute>
-              <Customers />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customers/:id"
-          element={
-            <ProtectedRoute>
-              <CustomerDetail />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/transactions"
-          element={
-            <ProtectedRoute>
-              <Transactions />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/analytics"
-          element={
-            <ProtectedRoute>
-              <Analytics />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          }
-        />
+          {/* 보호된 라우트 */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customers"
+            element={
+              <ProtectedRoute>
+                <Customers />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customers/:id"
+            element={
+              <ProtectedRoute>
+                <CustomerDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/transactions"
+            element={
+              <ProtectedRoute>
+                <Transactions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoute>
+                <Analytics />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* 404 */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        </ActivityTrackerWrapper>
-      </BrowserRouter>
+          {/* 404 */}
+          <Route path="*" element={<NotFound />} />
+          </Routes>
+          </ActivityTrackerWrapper>
+        </BrowserRouter>
+      </NetworkStatusProvider>
     </ToastProvider>
   );
 }
