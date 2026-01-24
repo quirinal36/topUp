@@ -8,6 +8,7 @@ import bcrypt
 from supabase import Client
 
 from ..database import get_supabase_admin_client
+from ..utils import now_seoul_iso
 
 # PIN 정책 상수
 MAX_FAILED_ATTEMPTS = 5
@@ -105,7 +106,7 @@ class PinService:
         new_hash = self.hash_pin(new_pin)
         self.admin_db.table("shops").update({
             "pin_hash": new_hash,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": now_seoul_iso()
         }).eq("id", shop_id).execute()
 
         return True
@@ -117,7 +118,7 @@ class PinService:
             "pin_hash": new_hash,
             "pin_failed_count": 0,
             "pin_locked_until": None,
-            "updated_at": datetime.now().isoformat()
+            "updated_at": now_seoul_iso()
         }).eq("id", shop_id).execute()
 
         return True

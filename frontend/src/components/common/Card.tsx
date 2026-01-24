@@ -6,9 +6,10 @@ interface CardProps {
   className?: string;
   onClick?: () => void;
   hoverable?: boolean;
+  'data-testid'?: string;
 }
 
-export default function Card({ children, className, onClick, hoverable = false }: CardProps) {
+export default function Card({ children, className, onClick, hoverable = false, 'data-testid': testId }: CardProps) {
   return (
     <div
       className={clsx(
@@ -18,6 +19,7 @@ export default function Card({ children, className, onClick, hoverable = false }
         className
       )}
       onClick={onClick}
+      data-testid={testId}
     >
       {children}
     </div>

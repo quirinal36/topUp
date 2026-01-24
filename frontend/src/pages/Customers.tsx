@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, UserPlus, ArrowUpDown, Coffee } from 'lucide-react';
+import { Search, UserPlus, ArrowUpDown, BookText } from 'lucide-react';
 import { clsx } from 'clsx';
 import Modal from '../components/common/Modal';
 import Input from '../components/common/Input';
@@ -20,6 +20,8 @@ export default function Customers() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     customers,
@@ -46,19 +48,37 @@ export default function Customers() {
     fetchCustomers();
   }, [sortBy, sortOrder]);
 
-  // 전화번호 뒷자리로 필터링된 고객
-  const filteredCustomers = useMemo(() => {
-    if (!phoneDigits) return customers;
-    return customers.filter(c => c.phone_suffix.includes(phoneDigits));
-  }, [customers, phoneDigits]);
+  // 서버 검색 사용으로 클라이언트 필터링 제거 - customers를 직접 사용
+  const filteredCustomers = customers;
 
   const totalPages = Math.ceil(total / pageSize);
 
-  // 넘패드 검색
+  // 넘패드 검색 - 디바운스 적용 (150ms)
   const handleNumpadChange = (value: string) => {
     setPhoneDigits(value);
     audioFeedback.playTap();
+
+    // 이전 타이머 취소
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // 디바운스: 150ms 후 검색 실행
+    setIsSearching(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      await fetchCustomers(value, 1);
+      setIsSearching(false);
+    }, 150);
   };
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleSortChange = (newSortBy: string) => {
     if (sortBy === newSortBy) {
@@ -191,8 +211,11 @@ export default function Customers() {
       {/* 고객 목록 - POS 스타일 */}
       <div className="bg-white dark:bg-[#2d2420] rounded-xl p-5 shadow-pos-card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
             {phoneDigits ? `검색 결과 (${filteredCustomers.length}명)` : `전체 고객 (${total}명)`}
+            {isSearching && (
+              <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+            )}
           </h3>
         </div>
 
@@ -203,9 +226,14 @@ export default function Customers() {
               고객 목록을 불러오는 중...
             </p>
           </div>
+        ) : isSearching && filteredCustomers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
+            <p className="mt-4 text-gray-500 dark:text-gray-400">검색 중...</p>
+          </div>
         ) : filteredCustomers.length === 0 ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-            <Coffee className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <BookText className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p className="text-lg">
               {phoneDigits ? '검색 결과가 없습니다.' : '등록된 고객이 없습니다.'}
             </p>
@@ -214,7 +242,10 @@ export default function Customers() {
             )}
           </div>
         ) : (
-          <div className="grid gap-3 tablet:grid-cols-2 tablet-lg:grid-cols-3">
+          <div className={clsx(
+            "grid gap-3 tablet:grid-cols-2 tablet-lg:grid-cols-3 transition-opacity duration-150",
+            isSearching && "opacity-50"
+          )}>
             {filteredCustomers.map((customer) => (
               <CustomerCard
                 key={customer.id}
@@ -274,6 +305,7 @@ export default function Customers() {
             maxLength={4}
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, ''))}
+            required
           />
 
           {error && <p className="text-error-500 text-base font-medium">{error}</p>}

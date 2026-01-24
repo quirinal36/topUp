@@ -41,6 +41,7 @@ class TransactionResponse(BaseModel):
     created_at: str
     is_cancelled: bool = False
     cancelled_by_id: Optional[str] = None
+    new_balance: Optional[int] = Field(None, description="거래 후 잔액 (검증용)")
 
 
 class TransactionWithCustomer(TransactionResponse):

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpCircle, ArrowDownCircle, XCircle, MoreVertical, Undo2, Coffee } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, XCircle, MoreVertical, Undo2, BookText } from 'lucide-react';
 import { Transaction } from '../../types';
 import { cancelTransaction } from '../../api/transactions';
 import Button from '../common/Button';
@@ -134,6 +134,9 @@ export default function TransactionList({
           return (
             <div
               key={transaction.id}
+              data-testid="transaction-item"
+              data-transaction-type={transaction.type}
+              data-transaction-cancelled={transaction.type === 'CANCEL' ? 'true' : undefined}
               className="flex items-center gap-3 p-3 bg-white rounded-card shadow-card dark:bg-[#2d2420] dark:shadow-none dark:border dark:border-primary-800/30"
             >
               <div className={`w-10 h-10 rounded-full ${typeInfo.bgColor} flex items-center justify-center`}>
@@ -153,7 +156,7 @@ export default function TransactionList({
                 </div>
                 {transaction.note && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
-                    {transaction.type === 'DEDUCT' && <Coffee className="w-3 h-3 flex-shrink-0" />}
+                    {transaction.type === 'DEDUCT' && <BookText className="w-3 h-3 flex-shrink-0" />}
                     {transaction.note}
                   </p>
                 )}

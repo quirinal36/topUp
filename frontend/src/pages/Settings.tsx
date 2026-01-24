@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Key, Link2, Store, Edit2, Coffee, Plus, Trash2, FileText } from 'lucide-react';
+import { Moon, Sun, Key, Link2, Store, Edit2, BookText, Plus, Trash2, FileText } from 'lucide-react';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
@@ -246,7 +246,7 @@ export default function Settings() {
           </div>
         ) : menus.length === 0 ? (
           <div className="text-center py-6">
-            <Coffee className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+            <BookText className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
             <p className="text-sm text-gray-500 dark:text-gray-400">
               등록된 메뉴가 없습니다
             </p>
@@ -272,7 +272,7 @@ export default function Settings() {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Coffee className="w-5 h-5 text-primary-500" />
+                  <BookText className="w-5 h-5 text-primary-500" />
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">
                       {menu.name}
@@ -382,7 +382,7 @@ export default function Settings() {
         <h2 className="text-heading-3 text-gray-900 dark:text-white mb-4">정보</h2>
         <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
           <p>버전: 1.0.0</p>
-          <p>카페 선결제 관리 시스템</p>
+          <p>선결제 관리 플랫폼 커밍스</p>
         </div>
       </Card>
 

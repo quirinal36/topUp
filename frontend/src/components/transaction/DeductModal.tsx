@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Coffee, Minus } from 'lucide-react';
+import { BookText, Minus } from 'lucide-react';
 import { clsx } from 'clsx';
 import Modal from '../common/Modal';
 import Input from '../common/Input';
@@ -20,6 +20,8 @@ interface DeductModalProps {
   customerName: string;
   currentBalance: number;
   onSuccess: () => void;
+  onOptimisticUpdate?: (customerId: string, amountChange: number) => void;
+  onRollback?: (customerId: string, amountChange: number) => void;
 }
 
 export default function DeductModal({
@@ -29,6 +31,8 @@ export default function DeductModal({
   customerName,
   currentBalance,
   onSuccess,
+  onOptimisticUpdate,
+  onRollback,
 }: DeductModalProps) {
   const toast = useToast();
   const [amount, setAmount] = useState('');
@@ -38,14 +42,18 @@ export default function DeductModal({
   const [menus, setMenus] = useState<Menu[]>([]);
   const [selectedMenuId, setSelectedMenuId] = useState<string>('');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [isLoadingMenus, setIsLoadingMenus] = useState(true);
 
   // 메뉴 목록 불러오기
   useEffect(() => {
     if (isOpen) {
+      setIsLoadingMenus(true);
       getMenus(false).then((response) => {
         setMenus(response.menus);
       }).catch(() => {
         setMenus([]);
+      }).finally(() => {
+        setIsLoadingMenus(false);
       });
       // Initialize audio on modal open
       audioFeedback.init();
@@ -116,17 +124,36 @@ export default function DeductModal({
       return;
     }
 
+    // 1. 즉시 로딩 상태로 전환
     setIsLoading(true);
     setError('');
 
+    // 2. 낙관적 업데이트: 즉시 UI 반영 (차감은 음수)
+    if (onOptimisticUpdate) {
+      onOptimisticUpdate(customerId, -amountNum);
+    }
+
+    // 3. 즉시 성공 피드백 (사용자 체감 속도 향상)
+    audioFeedback.playSuccess();
+    toast.success(`${customerName}님의 ${amountNum.toLocaleString()}원이 사용되었습니다`);
+    handleClose();
+
+    // 4. 백그라운드에서 API 호출
+    const expectedBalance = currentBalance - amountNum;
     try {
-      await deduct({
+      const result = await deduct({
         customer_id: customerId,
         amount: amountNum,
         note: note || undefined,
       });
-      audioFeedback.playSuccess();
-      toast.success(`${customerName}님의 ${amountNum.toLocaleString()}원이 사용되었습니다`);
+
+      // 5. 잔액 검증: API 응답의 new_balance와 예상값 비교
+      if (result.new_balance !== undefined && result.new_balance !== expectedBalance) {
+        console.warn(`[차감 검증] 잔액 불일치 감지: 예상=${expectedBalance}, 실제=${result.new_balance}`);
+        toast.warning(`잔액이 동기화되었습니다. (${result.new_balance.toLocaleString()}원)`);
+      }
+
+      // API 성공: 백그라운드에서 전체 데이터 동기화
       onSuccess();
       handleClose();
     } catch (err) {
@@ -138,6 +165,8 @@ export default function DeductModal({
       setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
+
+
     }
   };
 
@@ -147,6 +176,7 @@ export default function DeductModal({
     setError('');
     setSelectedMenuId('');
     setShowCustomInput(false);
+    setIsLoading(false);
     onClose();
   };
 
@@ -155,13 +185,13 @@ export default function DeductModal({
   const isInsufficientBalance = amountNum > currentBalance;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="사용 (차감)" size="lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title="사용 (차감)" size="lg" data-testid="deduct-modal">
       <div className="space-y-5">
         {/* 고객 정보 헤더 - POS 스타일 */}
         <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-primary-900/20 rounded-xl">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-800/50 flex items-center justify-center">
-              <Coffee className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              <BookText className="w-6 h-6 text-primary-600 dark:text-primary-400" />
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{customerName}</p>
@@ -198,7 +228,7 @@ export default function DeductModal({
         )}
 
         {/* 빠른 금액 선택 - POS 스타일 */}
-        {!selectedMenuId && !showCustomInput && (
+        {!isLoadingMenus && !selectedMenuId && !showCustomInput && (
           <div>
             <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
               빠른 선택

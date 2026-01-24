@@ -139,7 +139,7 @@ export default function PinVerifyModal({
   const isLocked = lockedTime !== null && lockedTime > 0;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm" data-testid="pin-modal">
       <div className="space-y-6">
         <div className="text-center">
           <div className="mx-auto w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-4">
@@ -148,7 +148,7 @@ export default function PinVerifyModal({
           <p className="text-gray-600 dark:text-gray-400">{description}</p>
         </div>
 
-        <div className="flex justify-center gap-3">
+        <div className="flex justify-center gap-3" data-testid="pin-inputs">
           {pin.map((digit, index) => (
             <input
               key={index}
@@ -161,6 +161,7 @@ export default function PinVerifyModal({
               onKeyDown={(e) => handleKeyDown(index, e)}
               onPaste={handlePaste}
               disabled={isLoading || isLocked}
+              data-testid={`pin-input-${index}`}
               className={clsx(
                 'w-14 h-14 text-center text-2xl font-bold rounded-lg border-2 transition-all',
                 'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
@@ -175,7 +176,7 @@ export default function PinVerifyModal({
         </div>
 
         {error && (
-          <div className="flex items-center justify-center gap-2 text-error-500">
+          <div className="flex items-center justify-center gap-2 text-error-500" data-testid="pin-error">
             <AlertCircle className="w-4 h-4" />
             <span className="text-sm">{error}</span>
           </div>
@@ -207,6 +208,7 @@ export default function PinVerifyModal({
             onClick={() => handleVerify(pin.join(''))}
             disabled={pin.some(d => d === '') || isLoading || isLocked}
             isLoading={isLoading}
+            data-testid="pin-confirm"
           >
             확인
           </Button>

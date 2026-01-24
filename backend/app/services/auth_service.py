@@ -15,6 +15,7 @@ from supabase import Client
 
 from ..config import get_settings
 from ..database import get_supabase_admin_client
+from ..utils import now_seoul_iso
 from .pin_service import PinService
 
 # 프로덕션에서는 INFO 레벨로 설정
@@ -127,7 +128,7 @@ class AuthService:
                 "jti": jti,
                 "shop_id": shop_id,
                 "expires_at": expires_at.isoformat(),
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": now_seoul_iso()
             }).execute()
             logger.info(f"[AUTH] 토큰 블랙리스트 추가 - jti: {jti[:8]}...")
             return True
@@ -300,7 +301,7 @@ class AuthService:
         # 사용자가 설정한 PIN 해시
         pin_hash = self.pin_service.hash_pin(pin)
 
-        now = datetime.now(timezone.utc)
+        now_iso = now_seoul_iso()
         shop_data = {
             "id": shop_id,
             "username": username.lower(),
@@ -309,8 +310,8 @@ class AuthService:
             "ci": ci,
             "pin_hash": pin_hash,
             "pin_change_required": False,  # 사용자가 직접 설정했으므로 변경 불필요
-            "created_at": now.isoformat(),
-            "updated_at": now.isoformat()
+            "created_at": now_iso,
+            "updated_at": now_iso
         }
 
         # 이메일이 제공된 경우 추가
@@ -403,7 +404,7 @@ class AuthService:
                 "reset_code_expires_at": expires_at.isoformat(),
                 "reset_code_failed_count": 0,
                 "reset_code_locked_until": None,
-                "updated_at": now.isoformat()
+                "updated_at": now_seoul_iso()
             }).eq("id", shop_id).execute()
 
             # 이메일 발송 (Supabase Edge Function 또는 외부 서비스)
@@ -558,16 +559,15 @@ class AuthService:
         failed_count = (shop.get("reset_code_failed_count") or 0) + 1
         remaining = RESET_MAX_FAILED_ATTEMPTS - failed_count
 
-        now = datetime.now(timezone.utc)
         update_data = {
             "reset_code_failed_count": failed_count,
-            "updated_at": now.isoformat()
+            "updated_at": now_seoul_iso()
         }
 
         # 최대 실패 횟수 도달 시 잠금
         new_locked_until = None
         if failed_count >= RESET_MAX_FAILED_ATTEMPTS:
-            new_locked_until = now + timedelta(minutes=RESET_LOCK_DURATION_MINUTES)
+            new_locked_until = datetime.now(timezone.utc) + timedelta(minutes=RESET_LOCK_DURATION_MINUTES)
             update_data["reset_code_locked_until"] = new_locked_until.isoformat()
             remaining = 0
             logger.warning(f"[PASSWORD_RESET] 계정 잠금 - shop_id: {shop_id[:8]}...")
@@ -608,7 +608,7 @@ class AuthService:
                 "reset_code_expires_at": None,
                 "reset_code_failed_count": 0,
                 "reset_code_locked_until": None,
-                "updated_at": datetime.now(timezone.utc).isoformat()
+                "updated_at": now_seoul_iso()
             }).eq("id", shop_id).execute()
 
             # 업데이트 확인 - 새 비밀번호 해시가 저장되었는지 검증

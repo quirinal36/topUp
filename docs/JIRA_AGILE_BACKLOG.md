@@ -1,6 +1,6 @@
-# topUp - Atlassian JIRA Agile Backlog
+# Comings - Atlassian JIRA Agile Backlog
 
-**프로젝트 키:** TOPUP
+**프로젝트 키:** COMINGS (기존: TOPUP)
 **문서 버전:** 1.0
 **작성일:** 2025-12-31
 **스프린트 주기:** 2주

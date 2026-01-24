@@ -51,10 +51,10 @@ export default function Login() {
         <div className="text-center mb-8">
           <span className="text-6xl">☕</span>
           <h1 className="text-heading-1 text-primary-700 dark:text-primary-400 mt-4">
-            카페 선결제
+            커밍스
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            편리한 선결제 관리 시스템
+            선결제 관리 플랫폼
           </p>
         </div>
 

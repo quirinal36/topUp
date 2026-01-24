@@ -43,7 +43,7 @@ const Numpad = ({ value, onChange, maxLength = 4, onSubmit: _onSubmit, className
   );
 
   return (
-    <div className={clsx('grid grid-cols-3 gap-3', className)}>
+    <div className={clsx('grid grid-cols-3 gap-3', className)} data-testid="numpad">
       {/* Row 1: 1, 2, 3 */}
       {['1', '2', '3'].map((digit) => (
         <button
@@ -51,6 +51,7 @@ const Numpad = ({ value, onChange, maxLength = 4, onSubmit: _onSubmit, className
           type="button"
           onClick={() => handleDigit(digit)}
           className={buttonClass}
+          data-testid={`numpad-${digit}`}
         >
           {digit}
         </button>
@@ -63,6 +64,7 @@ const Numpad = ({ value, onChange, maxLength = 4, onSubmit: _onSubmit, className
           type="button"
           onClick={() => handleDigit(digit)}
           className={buttonClass}
+          data-testid={`numpad-${digit}`}
         >
           {digit}
         </button>
@@ -75,6 +77,7 @@ const Numpad = ({ value, onChange, maxLength = 4, onSubmit: _onSubmit, className
           type="button"
           onClick={() => handleDigit(digit)}
           className={buttonClass}
+          data-testid={`numpad-${digit}`}
         >
           {digit}
         </button>
@@ -85,6 +88,7 @@ const Numpad = ({ value, onChange, maxLength = 4, onSubmit: _onSubmit, className
         type="button"
         onClick={handleClear}
         className={clsx(actionButtonClass, 'text-lg text-gray-500 dark:text-gray-400')}
+        data-testid="numpad-clear"
       >
         C
       </button>
@@ -92,6 +96,7 @@ const Numpad = ({ value, onChange, maxLength = 4, onSubmit: _onSubmit, className
         type="button"
         onClick={() => handleDigit('0')}
         className={buttonClass}
+        data-testid="numpad-0"
       >
         0
       </button>
@@ -99,6 +104,7 @@ const Numpad = ({ value, onChange, maxLength = 4, onSubmit: _onSubmit, className
         type="button"
         onClick={handleBackspace}
         className={actionButtonClass}
+        data-testid="numpad-backspace"
       >
         <Delete className="w-6 h-6 text-gray-500 dark:text-gray-400" />
       </button>

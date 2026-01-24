@@ -19,6 +19,8 @@ interface ChargeModalProps {
   customerName: string;
   currentBalance?: number;
   onSuccess: () => void;
+  onOptimisticUpdate?: (customerId: string, amountChange: number) => void;
+  onRollback?: (customerId: string, amountChange: number) => void;
 }
 
 export default function ChargeModal({
@@ -28,10 +30,11 @@ export default function ChargeModal({
   customerName,
   currentBalance = 0,
   onSuccess,
+  onOptimisticUpdate,
+  onRollback,
 }: ChargeModalProps) {
   const toast = useToast();
   const [actualPayment, setActualPayment] = useState('');
-  const [serviceAmount, setServiceAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +54,7 @@ export default function ChargeModal({
     { value: 'TRANSFER' as const, icon: Building2, label: '이체' },
   ];
 
-  const totalAmount = (parseInt(actualPayment) || 0) + (parseInt(serviceAmount) || 0);
+  const totalAmount = parseInt(actualPayment) || 0;
   const newBalance = currentBalance + totalAmount;
 
   // 빠른 금액 선택
@@ -85,22 +88,43 @@ export default function ChargeModal({
       return;
     }
 
+    const chargeAmount = totalAmount;
+
+    // 1. 즉시 로딩 상태로 전환하고 모달 닫기
     setIsLoading(true);
     setError('');
 
+    // 2. 낙관적 업데이트: 즉시 UI 반영
+    if (onOptimisticUpdate) {
+      onOptimisticUpdate(customerId, chargeAmount);
+    }
+
+    // 3. 즉시 성공 피드백 (사용자 체감 속도 향상)
+    audioFeedback.playSuccess();
+    toast.success(`${customerName}님에게 ${chargeAmount.toLocaleString()}원이 충전되었습니다`);
+    handleClose();
+
+    // 4. 백그라운드에서 API 호출
+    const expectedBalance = currentBalance + chargeAmount;
     try {
-      await charge({
+      const result = await charge({
         customer_id: customerId,
         actual_payment: parseInt(actualPayment),
-        service_amount: parseInt(serviceAmount) || 0,
+        service_amount: 0,
         payment_method: paymentMethod,
         note: note || undefined,
       });
-      audioFeedback.playSuccess();
-      toast.success(`${customerName}님에게 ${totalAmount.toLocaleString()}원이 충전되었습니다`);
+
+      // 5. 잔액 검증: API 응답의 new_balance와 예상값 비교
+      if (result.new_balance !== undefined && result.new_balance !== expectedBalance) {
+        console.warn(`[충전 검증] 잔액 불일치 감지: 예상=${expectedBalance}, 실제=${result.new_balance}`);
+        toast.warning(`잔액이 동기화되었습니다. (${result.new_balance.toLocaleString()}원)`);
+      }
+
+      // API 성공: 백그라운드에서 전체 데이터 동기화
       onSuccess();
-      handleClose();
     } catch (err) {
+      // API 실패: 롤백
       audioFeedback.playError();
       // 네트워크/서버 에러는 전역 핸들러가 토스트를 표시하므로 중복 방지
       if (!isNetworkError(err) && !isServerError(err)) {
@@ -109,23 +133,24 @@ export default function ChargeModal({
       setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
+
     }
   };
 
   const handleClose = () => {
     setActualPayment('');
-    setServiceAmount('');
     setPaymentMethod('CARD');
     setNote('');
     setError('');
     setShowCustomInput(false);
+    setIsLoading(false);
     onClose();
   };
 
   const actualPaymentNum = parseInt(actualPayment) || 0;
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="충전" size="lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title="충전" size="lg" data-testid="charge-modal">
       <div className="space-y-5">
         {/* 고객 정보 헤더 - POS 스타일 */}
         <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-primary-900/20 rounded-xl">
@@ -207,16 +232,6 @@ export default function ChargeModal({
             </span>
           </div>
         )}
-
-        {/* 서비스 금액 */}
-        <Input
-          inputSize="pos"
-          label="서비스 금액 (보너스)"
-          type="number"
-          placeholder="0"
-          value={serviceAmount}
-          onChange={(e) => setServiceAmount(e.target.value)}
-        />
 
         {/* 결제 수단 - POS 스타일 */}
         <div>

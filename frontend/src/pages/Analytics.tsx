@@ -1,26 +1,30 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Wallet } from 'lucide-react';
 import Card from '../components/common/Card';
-import { getPeriodAnalytics, getTopCustomers, getPaymentMethodStats } from '../api/dashboard';
-import { AnalyticsPeriod, TopCustomer, PaymentMethodStats } from '../types';
+import { getPeriodAnalytics, getTopCustomers, getPaymentMethodStats, getDashboardSummary } from '../api/dashboard';
+import { AnalyticsPeriod, TopCustomer, PaymentMethodStats, DashboardSummary } from '../types';
 
 export default function Analytics() {
   const [periodData, setPeriodData] = useState<AnalyticsPeriod[]>([]);
   const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
   const [paymentStats, setPaymentStats] = useState<PaymentMethodStats[]>([]);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [period, customers, payments] = await Promise.all([
+        const [period, customers, payments, summaryData] = await Promise.all([
           getPeriodAnalytics({ period_type: 'daily' }),
           getTopCustomers(5),
           getPaymentMethodStats(),
+          getDashboardSummary(),
         ]);
         setPeriodData(period);
         setTopCustomers(customers);
         setPaymentStats(payments);
+        setSummary(summaryData);
       } catch (error) {
         console.error('Failed to fetch analytics:', error);
       } finally {
@@ -54,6 +58,26 @@ export default function Analytics() {
   return (
     <div className="space-y-6">
       <h1 className="text-heading-2 text-gray-900 dark:text-white">통계 분석</h1>
+
+      {/* 총 예치금 */}
+      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl text-white">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+            <Wallet className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="text-primary-100 text-xs">총 예치금</p>
+            <p className="text-xl font-bold">
+              {formatCurrency(summary?.total_balance || 0)}원
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-primary-200 text-sm">
+            전체 고객 {summary?.total_customers || 0}명
+          </p>
+        </div>
+      </div>
 
       {/* 기간별 매출 차트 */}
       <Card>

@@ -21,6 +21,7 @@ logger.setLevel(logging.INFO if _is_production else logging.DEBUG)
 settings = get_settings()
 
 from ..database import get_db, get_supabase_admin_client
+from ..utils import now_seoul_iso
 from ..services.auth_service import AuthService
 from ..services.pin_service import PinService
 from ..schemas.auth import (
@@ -447,7 +448,7 @@ async def update_current_shop_info(
 
     admin_db.table("shops").update({
         "name": request.name,
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "updated_at": now_seoul_iso()
     }).eq("id", shop_id).execute()
 
     # 업데이트된 정보 반환

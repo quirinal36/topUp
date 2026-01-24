@@ -10,6 +10,7 @@ interface ModalProps {
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg';
   showCloseButton?: boolean;
+  'data-testid'?: string;
 }
 
 export default function Modal({
@@ -19,6 +20,7 @@ export default function Modal({
   children,
   size = 'md',
   showCloseButton = true,
+  'data-testid': testId,
 }: ModalProps) {
   // ESC 키로 닫기
   useEffect(() => {
@@ -60,6 +62,7 @@ export default function Modal({
           'dark:bg-[#2d2420]',
           sizes[size]
         )}
+        data-testid={testId}
       >
         {/* 헤더 */}
         {(title || showCloseButton) && (

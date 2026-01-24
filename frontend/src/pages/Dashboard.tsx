@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Wallet, Search, Plus, Minus, UserPlus, Clock, Coffee } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { Search, Plus, Minus, UserPlus, Clock, BookText, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
@@ -8,24 +8,23 @@ import ChargeModal from '../components/transaction/ChargeModal';
 import DeductModal from '../components/transaction/DeductModal';
 import CustomerCard from '../components/customer/CustomerCard';
 import Numpad from '../components/pos/Numpad';
-import { getDashboardSummary } from '../api/dashboard';
 import { getCustomers, createCustomer } from '../api/customers';
 import { getTransactions } from '../api/transactions';
-import { DashboardSummary, Customer, Transaction } from '../types';
+import { Customer, Transaction } from '../types';
 import { audioFeedback } from '../utils/audioFeedback';
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 30;
 
-  // Refs for customer cards
-  const customerCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Ref for debounce
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Modal states
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -40,14 +39,36 @@ export default function Dashboard() {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원';
   };
 
-  const fetchData = useCallback(async () => {
+  // 고객 검색만 수행 (빠른 응답)
+  const searchCustomers = useCallback(async (searchQuery: string) => {
+    setIsSearching(true);
     try {
-      const [summaryData, customerData, transactionData] = await Promise.all([
-        getDashboardSummary(),
-        getCustomers({ page, page_size: pageSize }),
+      const customerData = await getCustomers({
+        page: 1,
+        page_size: pageSize,
+        query: searchQuery || undefined
+      });
+      setCustomers(customerData.customers);
+      setTotal(customerData.total);
+    } catch (error) {
+      console.error('Failed to search customers:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // 전체 데이터 로드 (초기 로드, 거래 후 갱신)
+  const fetchData = useCallback(async (searchQuery?: string, pageNum?: number) => {
+    try {
+      const currentPage = pageNum ?? page;
+      const [customerData, transactionData] = await Promise.all([
+        getCustomers({
+          page: searchQuery ? 1 : currentPage,
+          page_size: pageSize,
+          query: searchQuery || undefined
+        }),
         getTransactions({ page: 1, page_size: 5 }),
       ]);
-      setSummary(summaryData);
       setCustomers(customerData.customers);
       setTotal(customerData.total);
       setRecentTransactions(transactionData.transactions);
@@ -55,6 +76,7 @@ export default function Dashboard() {
       console.error('Failed to fetch data:', error);
     } finally {
       setIsLoading(false);
+      setIsSearching(false);
     }
   }, [page]);
 
@@ -65,17 +87,34 @@ export default function Dashboard() {
     audioFeedback.init();
   }, [fetchData]);
 
-  // 전화번호 뒷자리로 필터링된 고객
-  const filteredCustomers = useMemo(() => {
-    if (!phoneDigits) return customers;
-    return customers.filter(c => c.phone_suffix.includes(phoneDigits));
-  }, [customers, phoneDigits]);
+  // 서버 사이드 검색으로 변경 - 클라이언트 필터링 제거
+  const filteredCustomers = customers;
 
-  // 넘패드 검색
+  // 넘패드 검색 - 디바운스 적용 (150ms)
   const handleNumpadChange = (value: string) => {
     setPhoneDigits(value);
     audioFeedback.playTap();
+
+    // 이전 타이머 취소
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // 디바운스: 150ms 후 검색 실행
+    setIsSearching(true);
+    searchTimeoutRef.current = setTimeout(() => {
+      searchCustomers(value);
+    }, 150);
   };
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -94,25 +133,45 @@ export default function Dashboard() {
   const handleCustomerSelect = (customer: Customer) => {
     setSelectedCustomer(customer);
     audioFeedback.playSelect();
-
-    // 선택된 고객 카드로 스크롤
-    const cardElement = customerCardRefs.current.get(customer.id);
-    if (cardElement) {
-      cardElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
   };
+
+  // 낙관적 업데이트: 즉시 UI에 잔액 변경 반영
+  const handleOptimisticUpdate = useCallback((customerId: string, amountChange: number) => {
+    // 고객 목록 업데이트
+    setCustomers(prev => prev.map(c =>
+      c.id === customerId
+        ? { ...c, current_balance: c.current_balance + amountChange }
+        : c
+    ));
+
+    // 선택된 고객 업데이트
+    setSelectedCustomer(prev =>
+      prev && prev.id === customerId
+        ? { ...prev, current_balance: prev.current_balance + amountChange }
+        : prev
+    );
+  }, []);
+
+  // 롤백: API 실패 시 원래 값으로 복구
+  const handleRollback = useCallback((customerId: string, amountChange: number) => {
+    // amountChange를 반대로 적용하여 롤백
+    handleOptimisticUpdate(customerId, -amountChange);
+  }, [handleOptimisticUpdate]);
 
   const handleTransactionSuccess = async () => {
     // 선택된 고객 ID를 저장
     const selectedId = selectedCustomer?.id;
 
     try {
-      const [summaryData, customerData, transactionData] = await Promise.all([
-        getDashboardSummary(),
-        getCustomers({ page, page_size: pageSize }),
+      // 검색어가 있으면 검색 결과 유지, 없으면 전체 목록
+      const [customerData, transactionData] = await Promise.all([
+        getCustomers({
+          page: phoneDigits ? 1 : page,
+          page_size: pageSize,
+          query: phoneDigits || undefined
+        }),
         getTransactions({ page: 1, page_size: 5 }),
       ]);
-      setSummary(summaryData);
       setCustomers(customerData.customers);
       setTotal(customerData.total);
       setRecentTransactions(transactionData.transactions);
@@ -133,12 +192,16 @@ export default function Dashboard() {
 
   const handleAddCustomer = async () => {
     if (!newCustomerName.trim()) return;
+    if (!newCustomerPhone || newCustomerPhone.length !== 4 || !/^\d{4}$/.test(newCustomerPhone)) {
+      audioFeedback.playError();
+      return;
+    }
 
     setIsAddingCustomer(true);
     try {
       await createCustomer({
         name: newCustomerName.trim(),
-        phone_suffix: newCustomerPhone.trim() || '0000',
+        phone_suffix: newCustomerPhone,
       });
       audioFeedback.playSuccess();
       setNewCustomerName('');
@@ -179,26 +242,6 @@ export default function Dashboard() {
       <div className="flex flex-col tablet-lg:flex-row gap-6 h-full">
         {/* 왼쪽: 고객 검색 및 목록 */}
         <div className="flex-1 tablet-lg:flex-[3] space-y-4">
-          {/* 총 예치금 - 컴팩트 버전 */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl text-white">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                <Wallet className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-primary-100 text-xs">총 예치금</p>
-                <p className="text-xl font-bold">
-                  {formatCurrency(summary?.total_balance || 0)}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-primary-200 text-sm">
-                {summary?.total_customers || 0}명
-              </p>
-            </div>
-          </div>
-
           {/* 검색 영역 - POS 스타일 */}
           <div className="bg-white dark:bg-[#2d2420] rounded-xl p-4 shadow-pos-card">
             <div className="flex items-center justify-between mb-4">
@@ -227,7 +270,13 @@ export default function Dashboard() {
                   placeholder="뒷자리 4자리 입력"
                   value={phoneDigits}
                   readOnly
-                  onClear={() => setPhoneDigits('')}
+                  onClear={() => {
+                    setPhoneDigits('');
+                    if (searchTimeoutRef.current) {
+                      clearTimeout(searchTimeoutRef.current);
+                    }
+                    searchCustomers('');
+                  }}
                   className="text-center text-2xl font-bold tracking-widest"
                 />
               </div>
@@ -246,30 +295,34 @@ export default function Dashboard() {
           {/* 고객 목록 - POS 스타일 */}
           <div className="bg-white dark:bg-[#2d2420] rounded-xl p-4 shadow-pos-card flex-1 overflow-hidden">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 {phoneDigits ? `검색 결과 (${filteredCustomers.length}명)` : `전체 고객 (${total}명)`}
+                {isSearching && (
+                  <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                )}
               </h3>
             </div>
 
-            {filteredCustomers.length === 0 ? (
+            {isSearching && filteredCustomers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
+                <p className="mt-4 text-gray-500 dark:text-gray-400">검색 중...</p>
+              </div>
+            ) : filteredCustomers.length === 0 ? (
               <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                <Coffee className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <BookText className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p className="text-lg">
                   {phoneDigits ? '검색 결과가 없습니다.' : '등록된 고객이 없습니다.'}
                 </p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[calc(100vh-500px)] overflow-y-auto">
+              <div className={clsx(
+                "space-y-3 max-h-[calc(100vh-500px)] overflow-y-auto transition-opacity duration-150",
+                isSearching && "opacity-50"
+              )} data-testid="search-results">
                 {filteredCustomers.map((customer) => (
                   <CustomerCard
                     key={customer.id}
-                    ref={(el) => {
-                      if (el) {
-                        customerCardRefs.current.set(customer.id, el);
-                      } else {
-                        customerCardRefs.current.delete(customer.id);
-                      }
-                    }}
                     customer={customer}
                     variant="pos"
                     selected={selectedCustomer?.id === customer.id}
@@ -309,7 +362,7 @@ export default function Dashboard() {
         {/* 오른쪽: 선택된 고객 및 액션 패널 */}
         <div className="tablet-lg:flex-[2] space-y-4">
           {/* 선택된 고객 정보 */}
-          <div className="bg-white dark:bg-[#2d2420] rounded-xl p-5 shadow-pos-card">
+          <div className="bg-white dark:bg-[#2d2420] rounded-xl p-5 shadow-pos-card" data-testid="customer-detail">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
               선택된 고객
             </h3>
@@ -334,12 +387,15 @@ export default function Dashboard() {
 
                 <div className="text-center py-4 border-2 border-dashed border-gray-200 dark:border-primary-800/30 rounded-xl">
                   <p className="text-sm text-gray-500 dark:text-gray-400">현재 잔액</p>
-                  <p className={clsx(
-                    'text-4xl font-bold',
-                    selectedCustomer.current_balance >= 0
-                      ? 'text-primary-600 dark:text-primary-400'
-                      : 'text-error-500'
-                  )}>
+                  <p
+                    data-testid="customer-balance"
+                    className={clsx(
+                      'text-4xl font-bold',
+                      selectedCustomer.current_balance >= 0
+                        ? 'text-primary-600 dark:text-primary-400'
+                        : 'text-error-500'
+                    )}
+                  >
                     {formatCurrency(selectedCustomer.current_balance)}
                   </p>
                 </div>
@@ -368,7 +424,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                <Coffee className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                <BookText className="w-16 h-16 mx-auto mb-4 opacity-30" />
                 <p className="text-lg">고객을 선택해주세요</p>
                 <p className="text-sm mt-1">전화번호 뒷자리로 검색하거나</p>
                 <p className="text-sm">목록에서 선택하세요</p>
@@ -394,35 +450,52 @@ export default function Dashboard() {
                 {recentTransactions.map((tx) => (
                   <div
                     key={tx.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-primary-900/10"
+                    className={clsx(
+                      "flex items-center justify-between p-3 rounded-lg",
+                      tx.is_cancelled
+                        ? "bg-gray-100 dark:bg-gray-800/50 opacity-60"
+                        : "bg-gray-50 dark:bg-primary-900/10"
+                    )}
                   >
                     <div className="flex items-center gap-3">
                       <div className={clsx(
                         'w-8 h-8 rounded-full flex items-center justify-center',
-                        tx.type === 'CHARGE'
-                          ? 'bg-success-100 dark:bg-success-900/30'
-                          : 'bg-error-100 dark:bg-error-900/30'
+                        tx.is_cancelled
+                          ? 'bg-gray-200 dark:bg-gray-700'
+                          : tx.type === 'CHARGE'
+                            ? 'bg-success-100 dark:bg-success-900/30'
+                            : 'bg-error-100 dark:bg-error-900/30'
                       )}>
-                        {tx.type === 'CHARGE' ? (
+                        {tx.is_cancelled ? (
+                          <X className="w-4 h-4 text-gray-500" />
+                        ) : tx.type === 'CHARGE' ? (
                           <Plus className="w-4 h-4 text-success-600" />
                         ) : (
                           <Minus className="w-4 h-4 text-error-600" />
                         )}
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">
+                        <p className={clsx(
+                          "font-medium text-sm",
+                          tx.is_cancelled
+                            ? "text-gray-500 dark:text-gray-400 line-through"
+                            : "text-gray-900 dark:text-white"
+                        )}>
                           {tx.customer_name}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {formatTimeAgo(tx.created_at)}
+                          {tx.is_cancelled && <span className="ml-1 text-error-500">(취소됨)</span>}
                         </p>
                       </div>
                     </div>
                     <p className={clsx(
                       'font-bold',
-                      tx.type === 'CHARGE'
-                        ? 'text-success-600 dark:text-success-400'
-                        : 'text-error-600 dark:text-error-400'
+                      tx.is_cancelled
+                        ? 'text-gray-400 dark:text-gray-500 line-through'
+                        : tx.type === 'CHARGE'
+                          ? 'text-success-600 dark:text-success-400'
+                          : 'text-error-600 dark:text-error-400'
                     )}>
                       {tx.type === 'CHARGE' ? '+' : '-'}
                       {formatCurrency(tx.type === 'CHARGE' ? (tx.actual_payment || 0) + (tx.service_amount || 0) : tx.amount)}
@@ -447,6 +520,8 @@ export default function Dashboard() {
             customerName={selectedCustomer.name}
             currentBalance={selectedCustomer.current_balance}
             onSuccess={handleTransactionSuccess}
+            onOptimisticUpdate={handleOptimisticUpdate}
+            onRollback={handleRollback}
           />
           <DeductModal
             isOpen={isDeductModalOpen}
@@ -457,6 +532,8 @@ export default function Dashboard() {
             customerName={selectedCustomer.name}
             currentBalance={selectedCustomer.current_balance}
             onSuccess={handleTransactionSuccess}
+            onOptimisticUpdate={handleOptimisticUpdate}
+            onRollback={handleRollback}
           />
         </>
       )}
@@ -471,6 +548,7 @@ export default function Dashboard() {
         }}
         title="새 고객 등록"
         size="md"
+        data-testid="add-customer-modal"
       >
         <div className="space-y-5">
           <Input
@@ -487,6 +565,7 @@ export default function Dashboard() {
             maxLength={4}
             value={newCustomerPhone}
             onChange={(e) => setNewCustomerPhone(e.target.value.replace(/\D/g, ''))}
+            required
           />
           <div className="flex gap-3 pt-2">
             <Button
@@ -505,7 +584,7 @@ export default function Dashboard() {
               size="pos-lg"
               onClick={handleAddCustomer}
               isLoading={isAddingCustomer}
-              disabled={!newCustomerName.trim()}
+              disabled={!newCustomerName.trim() || newCustomerPhone.length !== 4}
               className="flex-[2]"
             >
               등록하기
