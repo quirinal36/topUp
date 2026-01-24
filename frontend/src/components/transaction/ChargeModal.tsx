@@ -10,6 +10,7 @@ import { PaymentMethod } from '../../types';
 import { charge } from '../../api/transactions';
 import { useToast } from '../../contexts/ToastContext';
 import { audioFeedback } from '../../utils/audioFeedback';
+import { getErrorMessage, isNetworkError, isServerError } from '../../utils/errorHandler';
 
 interface ChargeModalProps {
   isOpen: boolean;
@@ -101,8 +102,11 @@ export default function ChargeModal({
       handleClose();
     } catch (err) {
       audioFeedback.playError();
-      toast.error('충전에 실패했습니다');
-      setError('충전에 실패했습니다');
+      // 네트워크/서버 에러는 전역 핸들러가 토스트를 표시하므로 중복 방지
+      if (!isNetworkError(err) && !isServerError(err)) {
+        toast.error(getErrorMessage(err));
+      }
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

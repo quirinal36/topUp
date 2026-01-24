@@ -10,6 +10,7 @@ import { deduct } from '../../api/transactions';
 import { getMenus } from '../../api/menus';
 import { useToast } from '../../contexts/ToastContext';
 import { audioFeedback } from '../../utils/audioFeedback';
+import { getErrorMessage, isNetworkError, isServerError } from '../../utils/errorHandler';
 import { Menu } from '../../types';
 
 interface DeductModalProps {
@@ -128,11 +129,13 @@ export default function DeductModal({
       toast.success(`${customerName}님의 ${amountNum.toLocaleString()}원이 사용되었습니다`);
       onSuccess();
       handleClose();
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.detail || '차감에 실패했습니다';
+    } catch (err) {
       audioFeedback.playError();
-      toast.error(errorMsg);
-      setError(errorMsg);
+      // 네트워크/서버 에러는 전역 핸들러가 토스트를 표시하므로 중복 방지
+      if (!isNetworkError(err) && !isServerError(err)) {
+        toast.error(getErrorMessage(err));
+      }
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
