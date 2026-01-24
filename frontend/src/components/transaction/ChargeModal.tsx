@@ -31,7 +31,6 @@ export default function ChargeModal({
   currentBalance = 0,
   onSuccess,
   onOptimisticUpdate,
-  onRollback,
 }: ChargeModalProps) {
   const toast = useToast();
   const [actualPayment, setActualPayment] = useState('');

@@ -32,7 +32,6 @@ export default function DeductModal({
   currentBalance,
   onSuccess,
   onOptimisticUpdate,
-  onRollback,
 }: DeductModalProps) {
   const toast = useToast();
   const [amount, setAmount] = useState('');
