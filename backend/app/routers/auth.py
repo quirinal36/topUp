@@ -5,6 +5,7 @@
 import logging
 import os
 import httpx
+import sentry_sdk
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple
 from collections import defaultdict
@@ -167,6 +168,8 @@ async def get_current_shop(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="유효하지 않은 인증 토큰입니다"
         )
+    # Sentry 사용자 컨텍스트 설정
+    sentry_sdk.set_user({"id": shop_id})
     return shop_id
 
 
