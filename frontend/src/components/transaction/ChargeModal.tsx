@@ -10,6 +10,7 @@ import { PaymentMethod } from '../../types';
 import { charge } from '../../api/transactions';
 import { useToast } from '../../contexts/ToastContext';
 import { audioFeedback } from '../../utils/audioFeedback';
+import { getErrorMessage, isNetworkError, isServerError } from '../../utils/errorHandler';
 
 interface ChargeModalProps {
   isOpen: boolean;
@@ -30,7 +31,6 @@ export default function ChargeModal({
   currentBalance = 0,
   onSuccess,
   onOptimisticUpdate,
-  onRollback,
 }: ChargeModalProps) {
   const toast = useToast();
   const [actualPayment, setActualPayment] = useState('');
@@ -125,12 +125,14 @@ export default function ChargeModal({
     } catch (err) {
       // API 실패: 롤백
       audioFeedback.playError();
-      toast.error('충전에 실패했습니다. 잔액이 원래대로 복구됩니다.');
-      if (onRollback) {
-        onRollback(customerId, chargeAmount);
+      // 네트워크/서버 에러는 전역 핸들러가 토스트를 표시하므로 중복 방지
+      if (!isNetworkError(err) && !isServerError(err)) {
+        toast.error(getErrorMessage(err));
       }
-      // 다시 데이터 동기화
-      onSuccess();
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+
     }
   };
 
