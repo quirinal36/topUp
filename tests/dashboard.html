@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>카페 선결제 시스템 - 테스트 대시보드</title>
+    <title>선결제 관리 시스템</title>
     <style>
         * {
             margin: 0;
@@ -312,6 +313,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>🧪 카페 선결제 시스템 <span>테스트 대시보드</span></h1>
@@ -375,7 +377,8 @@
                         <input type="number" id="testAmount" value="10000" min="1000" step="1000">
                     </div>
                 </div>
-                <button class="btn btn-warning" onclick="runRaceConditionTest()" id="raceBtn">Race Condition 테스트</button>
+                <button class="btn btn-warning" onclick="runRaceConditionTest()" id="raceBtn">Race Condition
+                    테스트</button>
                 <div class="status" id="raceStatus"></div>
             </div>
 
@@ -579,7 +582,7 @@
                             }).then(data => {
                                 customerIds.push(data.id);
                                 customersCreated++;
-                            }).catch(() => {})
+                            }).catch(() => { })
                         );
                     }
 
@@ -604,7 +607,7 @@
                                 payment_method: 'CASH',
                                 note: '초기 충전'
                             })
-                        }).catch(() => {})
+                        }).catch(() => { })
                     ));
                 }
 
@@ -629,7 +632,7 @@
                                         payment_method: ['CARD', 'CASH', 'TRANSFER'][Math.floor(Math.random() * 3)],
                                         note: `테스트 충전 #${i + j}`
                                     })
-                                }).then(() => transactionsCreated++).catch(() => {})
+                                }).then(() => transactionsCreated++).catch(() => { })
                             );
                         } else {
                             promises.push(
@@ -640,7 +643,7 @@
                                         amount: (Math.floor(Math.random() * 5) + 1) * 5000,
                                         note: `테스트 차감 #${i + j}`
                                     })
-                                }).then(() => transactionsCreated++).catch(() => {})
+                                }).then(() => transactionsCreated++).catch(() => { })
                             );
                         }
                     }
@@ -897,7 +900,7 @@
         }
 
         // 페이지 로드 시 .env 값 로드 시도 (로컬 스토리지에서)
-        window.onload = function() {
+        window.onload = function () {
             const savedApiUrl = localStorage.getItem('testApiUrl');
             const savedUsername = localStorage.getItem('testUsername');
 
@@ -914,4 +917,5 @@
         };
     </script>
 </body>
+
 </html>

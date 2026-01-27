@@ -1,5 +1,6 @@
 """
 대시보드 및 통계 API 라우터
+SQL RPC 함수로 최적화됨
 """
 from fastapi import APIRouter, Depends, Query
 from typing import Optional
@@ -23,39 +24,26 @@ router = APIRouter(prefix="/api/dashboard", tags=["대시보드"])
 async def get_dashboard_summary(
     shop_id: str = Depends(get_current_shop)
 ):
-    """대시보드 요약 정보"""
-    # RLS 우회를 위해 admin 클라이언트 사용
+    """대시보드 요약 정보 (SQL 최적화)"""
     db = get_supabase_admin_client()
 
-    # 해당 상점의 고객 목록
-    customers = db.table("customers").select("id, current_balance").eq("shop_id", shop_id).execute()
-    customer_ids = [c["id"] for c in customers.data]
+    # RPC 함수로 단일 쿼리 실행
+    result = db.rpc("get_dashboard_summary", {"p_shop_id": shop_id}).execute()
 
-    # 오늘 날짜 범위
-    today = date.today()
-    today_start = datetime.combine(today, datetime.min.time()).isoformat()
-    today_end = datetime.combine(today, datetime.max.time()).isoformat()
-
-    # 오늘 거래 조회
-    if customer_ids:
-        today_transactions = db.table("transactions").select("type, amount").in_(
-            "customer_id", customer_ids
-        ).gte("created_at", today_start).lte("created_at", today_end).execute()
-
-        today_charge = sum(t["amount"] for t in today_transactions.data if t["type"] == "CHARGE")
-        today_deduct = sum(t["amount"] for t in today_transactions.data if t["type"] == "DEDUCT")
-    else:
-        today_charge = 0
-        today_deduct = 0
-
-    # 전체 잔액 합계
-    total_balance = sum(c["current_balance"] for c in customers.data)
+    if result.data and len(result.data) > 0:
+        data = result.data[0]
+        return DashboardSummary(
+            today_total_charge=data["today_total_charge"] or 0,
+            today_total_deduct=data["today_total_deduct"] or 0,
+            total_balance=data["total_balance"] or 0,
+            total_customers=data["total_customers"] or 0
+        )
 
     return DashboardSummary(
-        today_total_charge=today_charge,
-        today_total_deduct=today_deduct,
-        total_balance=total_balance,
-        total_customers=len(customers.data)
+        today_total_charge=0,
+        today_total_deduct=0,
+        total_balance=0,
+        total_customers=0
     )
 
 
@@ -66,16 +54,8 @@ async def get_period_analytics(
     end_date: Optional[str] = Query(None, description="종료일 (YYYY-MM-DD)"),
     shop_id: str = Depends(get_current_shop)
 ):
-    """기간별 매출 현황"""
-    # RLS 우회를 위해 admin 클라이언트 사용
+    """기간별 매출 현황 (SQL 최적화)"""
     db = get_supabase_admin_client()
-
-    # 해당 상점의 고객 목록
-    customers = db.table("customers").select("id").eq("shop_id", shop_id).execute()
-    customer_ids = [c["id"] for c in customers.data]
-
-    if not customer_ids:
-        return []
 
     # 기간 설정
     if not end_date:
@@ -93,40 +73,22 @@ async def get_period_analytics(
     else:
         start = datetime.strptime(start_date, "%Y-%m-%d").date()
 
-    # 거래 조회
-    transactions = db.table("transactions").select("type, amount, created_at").in_(
-        "customer_id", customer_ids
-    ).gte("created_at", start.isoformat()).lte("created_at", end.isoformat()).execute()
-
-    # 기간별 집계
-    period_data = {}
-    for t in transactions.data:
-        tx_date = datetime.fromisoformat(t["created_at"].replace("Z", "+00:00")).date()
-
-        if period_type == "daily":
-            key = tx_date.isoformat()
-        elif period_type == "weekly":
-            key = tx_date.strftime("%Y-W%W")
-        else:
-            key = tx_date.strftime("%Y-%m")
-
-        if key not in period_data:
-            period_data[key] = {"charge": 0, "deduct": 0, "count": 0}
-
-        if t["type"] == "CHARGE":
-            period_data[key]["charge"] += t["amount"]
-        elif t["type"] == "DEDUCT":
-            period_data[key]["deduct"] += t["amount"]
-        period_data[key]["count"] += 1
+    # RPC 함수로 단일 쿼리 실행
+    result = db.rpc("get_period_analytics", {
+        "p_shop_id": shop_id,
+        "p_period_type": period_type,
+        "p_start_date": start.isoformat(),
+        "p_end_date": end.isoformat()
+    }).execute()
 
     return [
         AnalyticsPeriod(
-            period=key,
-            charge_amount=data["charge"],
-            deduct_amount=data["deduct"],
-            transaction_count=data["count"]
+            period=row["period"],
+            charge_amount=row["charge_amount"] or 0,
+            deduct_amount=row["deduct_amount"] or 0,
+            transaction_count=row["transaction_count"] or 0
         )
-        for key, data in sorted(period_data.items())
+        for row in result.data
     ]
 
 
@@ -135,44 +97,23 @@ async def get_top_customers(
     limit: int = Query(10, ge=1, le=50),
     shop_id: str = Depends(get_current_shop)
 ):
-    """상위 충전 고객 순위"""
-    # RLS 우회를 위해 admin 클라이언트 사용
+    """상위 충전 고객 순위 (SQL 최적화)"""
     db = get_supabase_admin_client()
 
-    # 해당 상점의 고객 목록
-    customers = db.table("customers").select("id, name").eq("shop_id", shop_id).execute()
-    customer_map = {c["id"]: c["name"] for c in customers.data}
-    customer_ids = list(customer_map.keys())
-
-    if not customer_ids:
-        return []
-
-    # 충전 거래 조회
-    transactions = db.table("transactions").select("customer_id, amount").in_(
-        "customer_id", customer_ids
-    ).eq("type", "CHARGE").execute()
-
-    # 고객별 집계
-    customer_totals = {}
-    customer_counts = Counter()
-    for t in transactions.data:
-        cid = t["customer_id"]
-        if cid not in customer_totals:
-            customer_totals[cid] = 0
-        customer_totals[cid] += t["amount"]
-        customer_counts[cid] += 1
-
-    # 정렬 및 상위 N개
-    sorted_customers = sorted(customer_totals.items(), key=lambda x: x[1], reverse=True)[:limit]
+    # RPC 함수로 단일 쿼리 실행
+    result = db.rpc("get_top_customers", {
+        "p_shop_id": shop_id,
+        "p_limit": limit
+    }).execute()
 
     return [
         TopCustomer(
-            customer_id=cid,
-            name=customer_map.get(cid, "Unknown"),
-            total_charged=total,
-            visit_count=customer_counts[cid]
+            customer_id=row["customer_id"],
+            name=row["name"] or "Unknown",
+            total_charged=row["total_charged"] or 0,
+            visit_count=row["visit_count"] or 0
         )
-        for cid, total in sorted_customers
+        for row in result.data
     ]
 
 
@@ -182,48 +123,24 @@ async def get_payment_method_stats(
     end_date: Optional[str] = Query(None),
     shop_id: str = Depends(get_current_shop)
 ):
-    """결제 수단별 현황"""
-    # RLS 우회를 위해 admin 클라이언트 사용
+    """결제 수단별 현황 (SQL 최적화)"""
     db = get_supabase_admin_client()
 
-    customers = db.table("customers").select("id").eq("shop_id", shop_id).execute()
-    customer_ids = [c["id"] for c in customers.data]
+    # RPC 함수로 단일 쿼리 실행
+    result = db.rpc("get_payment_method_stats", {
+        "p_shop_id": shop_id,
+        "p_start_date": start_date,
+        "p_end_date": end_date
+    }).execute()
 
-    if not customer_ids:
-        return []
-
-    # 충전 거래만 조회 (결제 수단이 있는 거래)
-    query = db.table("transactions").select("payment_method, amount").in_(
-        "customer_id", customer_ids
-    ).eq("type", "CHARGE").not_.is_("payment_method", "null")
-
-    if start_date:
-        query = query.gte("created_at", start_date)
-    if end_date:
-        query = query.lte("created_at", end_date)
-
-    transactions = query.execute()
-
-    # 결제 수단별 집계
-    method_stats = {}
-    total_amount = 0
-    for t in transactions.data:
-        method = t["payment_method"]
-        if method not in method_stats:
-            method_stats[method] = {"count": 0, "amount": 0}
-        method_stats[method]["count"] += 1
-        method_stats[method]["amount"] += t["amount"]
-        total_amount += t["amount"]
-
-    # 비율 계산
     return [
         PaymentMethodStats(
-            method=PaymentMethod(method),
-            count=data["count"],
-            amount=data["amount"],
-            percentage=round(data["amount"] / total_amount * 100, 1) if total_amount > 0 else 0
+            method=PaymentMethod(row["method"]),
+            count=row["count"] or 0,
+            amount=row["amount"] or 0,
+            percentage=float(row["percentage"] or 0)
         )
-        for method, data in method_stats.items()
+        for row in result.data
     ]
 
 

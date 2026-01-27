@@ -60,47 +60,41 @@ async def get_transactions(
             total_charge=0, total_deduct=0
         )
 
-    # 거래 조회 쿼리 구성
-    base_query = db.table("transactions").select("*", count="exact").in_("customer_id", customer_ids)
+    # 권한 검증
+    if customer_id and customer_id not in customer_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="해당 고객에 대한 접근 권한이 없습니다"
+        )
 
-    if customer_id:
-        if customer_id not in customer_ids:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="해당 고객에 대한 접근 권한이 없습니다"
-            )
-        base_query = base_query.eq("customer_id", customer_id)
-
-    if type:
-        base_query = base_query.eq("type", type.value)
-
-    # 날짜 필터링
+    # 날짜 필터링 준비
+    start_datetime = None
+    end_datetime = None
     if start_date:
         start_datetime = datetime.combine(start_date, datetime.min.time()).isoformat()
-        base_query = base_query.gte("created_at", start_datetime)
-
     if end_date:
         end_datetime = datetime.combine(end_date + timedelta(days=1), datetime.min.time()).isoformat()
-        base_query = base_query.lt("created_at", end_datetime)
 
-    # 페이지네이션 적용하여 거래 조회
-    offset = (page - 1) * page_size
-    result = base_query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
+    # RPC 함수로 단일 쿼리 실행 (목록 + 합계 동시 조회)
+    result = db.rpc("get_transactions_with_totals", {
+        "p_shop_id": shop_id,
+        "p_customer_id": customer_id,
+        "p_type": type.value if type else None,
+        "p_start_date": start_datetime,
+        "p_end_date": end_datetime,
+        "p_customer_ids": customer_ids,
+        "p_page": page,
+        "p_page_size": page_size
+    }).execute()
 
-    # 합계 계산을 위한 별도 쿼리 (필터 조건은 동일, 페이지네이션 제외)
-    sum_query = db.table("transactions").select("type, amount").in_("customer_id", customer_ids)
+    if not result.data:
+        return TransactionListResponse(
+            transactions=[], total=0, page=page, page_size=page_size,
+            total_charge=0, total_deduct=0
+        )
 
-    if customer_id:
-        sum_query = sum_query.eq("customer_id", customer_id)
-    if start_date:
-        sum_query = sum_query.gte("created_at", start_datetime)
-    if end_date:
-        sum_query = sum_query.lt("created_at", end_datetime)
-
-    sum_result = sum_query.execute()
-
-    total_charge = sum(t["amount"] for t in sum_result.data if t["type"] == "CHARGE")
-    total_deduct = sum(t["amount"] for t in sum_result.data if t["type"] == "DEDUCT")
+    data = result.data
+    transactions_data = data.get("transactions", [])
 
     transactions = [
         TransactionWithCustomer(
@@ -117,16 +111,16 @@ async def get_transactions(
             is_cancelled=t.get("is_cancelled", False),
             cancelled_by_id=t.get("cancelled_by_id")
         )
-        for t in result.data
+        for t in transactions_data
     ]
 
     return TransactionListResponse(
         transactions=transactions,
-        total=result.count or 0,
+        total=data.get("total_count", 0),
         page=page,
         page_size=page_size,
-        total_charge=total_charge,
-        total_deduct=total_deduct
+        total_charge=data.get("total_charge", 0),
+        total_deduct=data.get("total_deduct", 0)
     )
 
 
