@@ -8,10 +8,28 @@ import os
 # backend 경로 추가
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import traceback
+
+# Sentry 초기화 (DSN이 있을 때만)
+sentry_dsn = os.environ.get("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        environment=os.environ.get("APP_ENV", "production"),
+        integrations=[
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+        ],
+        traces_sample_rate=0.1,  # 성능 모니터링 10%
+        send_default_pii=False,  # 개인정보 전송 안함
+    )
 
 app = FastAPI(
     title="선결제 관리 플랫폼 커밍스 API",
@@ -30,7 +48,19 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """전역 예외 핸들러 - 디버깅용"""
+    """전역 예외 핸들러 - Sentry 연동"""
+    # Sentry로 에러 전송
+    if sentry_dsn:
+        sentry_sdk.capture_exception(exc)
+
+    # 프로덕션에서는 상세 에러 숨김
+    is_production = os.environ.get("APP_ENV") == "production"
+    if is_production:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "서버 오류가 발생했습니다."}
+        )
+
     return JSONResponse(
         status_code=500,
         content={

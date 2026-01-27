@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import * as Sentry from '@sentry/react';
 import { getCurrentShop } from '../api/auth';
 
 // 30분 (밀리초)
@@ -43,6 +44,8 @@ export const useAuthStore = create<AuthState>()(
         localStorage.setItem('access_token', token);
         try {
           const shop = await getCurrentShop();
+          // Sentry 사용자 컨텍스트 설정
+          Sentry.setUser({ id: shop.id, username: shop.name });
           set({
             isAuthenticated: true,
             shopId: shop.id,
@@ -59,6 +62,8 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         localStorage.removeItem('access_token');
+        // Sentry 사용자 컨텍스트 초기화
+        Sentry.setUser(null);
         set({
           isAuthenticated: false,
           shopId: null,

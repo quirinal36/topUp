@@ -19,3 +19,6 @@ httpx==0.27.2
 
 # 유틸리티
 python-dateutil==2.8.2
+
+# 모니터링
+sentry-sdk[fastapi]==1.40.0
