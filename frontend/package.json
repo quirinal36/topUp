@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.4.1",
+    "@sentry/react": "^10.36.0",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "lucide-react": "^0.294.0",

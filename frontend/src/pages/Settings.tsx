@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Key, Link2, Store, Edit2, BookText, Plus, Trash2, FileText } from 'lucide-react';
+import { Moon, Sun, Key, Link2, Store, Edit2, BookText, Plus, Trash2, FileText, Users } from 'lucide-react';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Modal from '../components/common/Modal';
+import CustomerDataManagement from '../components/settings/CustomerDataManagement';
 import { useAuthStore } from '../stores/authStore';
 import { changePin, updateShop } from '../api/auth';
 import { getMenus, createMenu, updateMenu, deleteMenu } from '../api/menus';
@@ -311,6 +312,15 @@ export default function Settings() {
           <FileText size={12} />
           메뉴는 고객에게 표시되며, 빠른 결제에 활용됩니다.
         </p>
+      </Card>
+
+      {/* 고객 데이터 관리 */}
+      <Card>
+        <div className="flex items-center gap-2 mb-4">
+          <Users className="w-5 h-5 text-primary-500" />
+          <h2 className="text-heading-3 text-gray-900 dark:text-white">고객 데이터 관리</h2>
+        </div>
+        <CustomerDataManagement />
       </Card>
 
       {/* 디스플레이 설정 */}
