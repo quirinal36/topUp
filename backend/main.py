@@ -31,11 +31,14 @@ if settings.sentry_dsn:
 # Vercel 환경인지 확인
 IS_VERCEL = os.environ.get("VERCEL", False)
 
-# FastAPI 앱 생성 (Vercel에서는 lifespan 비활성화)
+# FastAPI 앱 생성
 app = FastAPI(
     title="선결제 관리 플랫폼 커밍스 API",
     description="선결제(예치금) 관리를 위한 REST API - Comings",
     version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 # CORS 설정 (개발 환경에서는 모든 origin 허용)
