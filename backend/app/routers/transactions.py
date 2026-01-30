@@ -33,29 +33,40 @@ def _parse_rpc_error(e: APIError) -> Optional[dict]:
     RPC 함수가 success: false를 반환하면 postgrest가 이를 파싱하지 못하고 APIError를 발생시킵니다.
     """
     try:
-        # APIError의 details 필드에서 JSON 추출
-        error_str = str(e)
-        # Details: b'{"success": false, ...}' 형태에서 JSON 부분 추출
-        if "Details:" in error_str:
-            details_part = error_str.split("Details:")[-1].strip()
-            # b'...' 형태에서 내용 추출
-            if details_part.startswith("b'") or details_part.startswith('b"'):
-                json_str = details_part[2:-1]  # b' 와 ' 제거
-                # UTF-8 바이트 시퀀스(\xNN)를 실제 바이트로 변환 후 UTF-8 디코딩
-                # latin-1은 0x00-0xFF를 그대로 매핑하므로 바이트 복원에 적합
-                json_bytes = json_str.encode('latin-1').decode('unicode_escape').encode('latin-1')
-                return json.loads(json_bytes.decode('utf-8'))
-
-        # e.details가 있으면 직접 파싱 시도
+        # e.details가 있으면 직접 파싱 시도 (가장 일반적인 경우)
         if hasattr(e, 'details') and e.details:
-            if isinstance(e.details, bytes):
-                return json.loads(e.details.decode('utf-8'))
-            elif isinstance(e.details, str):
-                # 문자열에 \x 이스케이프가 포함된 경우 처리
-                if '\\x' in e.details:
-                    json_bytes = e.details.encode('latin-1').decode('unicode_escape').encode('latin-1')
+            details = e.details
+
+            # bytes인 경우 UTF-8 디코딩
+            if isinstance(details, bytes):
+                return json.loads(details.decode('utf-8'))
+
+            # 문자열인 경우
+            if isinstance(details, str):
+                # b'...' 형태의 문자열인 경우 (bytes repr)
+                if details.startswith("b'") and details.endswith("'"):
+                    json_str = details[2:-1]  # b' 와 ' 제거
+                    # UTF-8 바이트 시퀀스(\xNN)를 실제 바이트로 변환 후 UTF-8 디코딩
+                    json_bytes = json_str.encode('latin-1').decode('unicode_escape').encode('latin-1')
                     return json.loads(json_bytes.decode('utf-8'))
-                return json.loads(e.details)
+
+                # 일반 JSON 문자열
+                return json.loads(details)
+
+        # fallback: 에러 메시지에서 details 추출 시도
+        error_str = str(e)
+        if "'details':" in error_str:
+            import re
+            # 'details': 'b\'...\'' 패턴 매칭
+            match = re.search(r"'details':\s*'(b\\'.*?\\')'", error_str)
+            if match:
+                details_str = match.group(1)
+                # b\'...\' -> b'...'
+                details_str = details_str.replace("\\'", "'")
+                if details_str.startswith("b'") and details_str.endswith("'"):
+                    json_str = details_str[2:-1]
+                    json_bytes = json_str.encode('latin-1').decode('unicode_escape').encode('latin-1')
+                    return json.loads(json_bytes.decode('utf-8'))
 
         return None
     except Exception as parse_error:
