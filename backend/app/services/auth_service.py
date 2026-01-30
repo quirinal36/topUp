@@ -602,7 +602,8 @@ class AuthService:
 
         # 비밀번호 업데이트
         try:
-            self.admin_db.table("shops").update({
+            # update 결과를 직접 확인
+            update_result = self.admin_db.table("shops").update({
                 "password_hash": new_password_hash,
                 "reset_code_hash": None,
                 "reset_code_expires_at": None,
@@ -611,19 +612,29 @@ class AuthService:
                 "updated_at": now_seoul_iso()
             }).eq("id", shop_id).execute()
 
-            # 업데이트 확인 - 새 비밀번호 해시가 저장되었는지 검증
-            verify_result = self.admin_db.table("shops").select("password_hash").eq("id", shop_id).maybe_single().execute()
-            if verify_result and verify_result.data:
-                stored_hash = verify_result.data.get("password_hash")
-                if stored_hash == new_password_hash:
-                    logger.info(f"[PASSWORD_RESET] 비밀번호 변경 완료 (검증됨) - shop_id: {shop_id[:8]}...")
-                    return True
-                else:
-                    logger.error(f"[PASSWORD_RESET] 비밀번호 해시 불일치 - shop_id: {shop_id[:8]}...")
-                    return False
-            else:
-                logger.error(f"[PASSWORD_RESET] 비밀번호 검증 실패 - shop_id: {shop_id[:8]}...")
+            # update 결과 확인 (Supabase는 업데이트된 row를 반환)
+            if not update_result.data:
+                logger.error(f"[PASSWORD_RESET] 업데이트 실패 (결과 없음) - shop_id: {shop_id[:8]}...")
                 return False
+
+            updated_row = update_result.data[0] if update_result.data else None
+            if updated_row and updated_row.get("password_hash") == new_password_hash:
+                logger.info(f"[PASSWORD_RESET] 비밀번호 변경 완료 - shop_id: {shop_id[:8]}...")
+                return True
+            else:
+                # 추가 검증: select로 한 번 더 확인
+                verify_result = self.admin_db.table("shops").select("password_hash").eq("id", shop_id).maybe_single().execute()
+                if verify_result and verify_result.data:
+                    stored_hash = verify_result.data.get("password_hash")
+                    if stored_hash == new_password_hash:
+                        logger.info(f"[PASSWORD_RESET] 비밀번호 변경 완료 (재검증) - shop_id: {shop_id[:8]}...")
+                        return True
+                    else:
+                        logger.error(f"[PASSWORD_RESET] 비밀번호 해시 불일치 - 저장됨: {stored_hash[:20] if stored_hash else 'None'}..., 예상: {new_password_hash[:20]}...")
+                        return False
+                else:
+                    logger.error(f"[PASSWORD_RESET] 비밀번호 검증 실패 - shop_id: {shop_id[:8]}...")
+                    return False
         except Exception as e:
             logger.error(f"[PASSWORD_RESET] 비밀번호 업데이트 오류 - shop_id: {shop_id[:8]}..., error: {str(e)}")
             return False
