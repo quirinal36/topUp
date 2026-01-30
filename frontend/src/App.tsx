@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { useAuthStore } from './stores/authStore';
 import { getCurrentShop } from './api/auth';
 import { ToastProvider, useToast } from './contexts/ToastContext';
@@ -12,7 +13,7 @@ import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
 import Transactions from './pages/Transactions';
-import Analytics from './pages/Analytics';
+import AnalyticsPage from './pages/Analytics';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
 import NotFound from './pages/NotFound';
@@ -178,6 +179,7 @@ function App() {
       <NetworkStatusProvider>
         <BrowserRouter>
           <ActivityTrackerWrapper>
+          <Analytics />
           <Routes>
           {/* 공개 라우트 */}
           <Route path="/login" element={<Login />} />
@@ -231,7 +233,7 @@ function App() {
             path="/analytics"
             element={
               <ProtectedRoute>
-                <Analytics />
+                <AnalyticsPage />
               </ProtectedRoute>
             }
           />
