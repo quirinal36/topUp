@@ -2,6 +2,7 @@
 export interface Customer {
   id: string;
   name: string;
+  phone?: string;
   phone_suffix: string;
   current_balance: number;
   created_at: string;

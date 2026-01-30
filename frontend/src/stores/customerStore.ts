@@ -17,8 +17,8 @@ interface CustomerState {
   // Actions
   fetchCustomers: (query?: string, page?: number) => Promise<void>;
   fetchCustomer: (id: string) => Promise<void>;
-  createCustomer: (name: string, phoneSuffix: string) => Promise<Customer>;
-  updateCustomer: (id: string, data: { name?: string; phone_suffix?: string }) => Promise<void>;
+  createCustomer: (name: string, phone: string) => Promise<Customer>;
+  updateCustomer: (id: string, data: { name?: string; phone?: string }) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
   setSearchQuery: (query: string) => void;
   setSortBy: (sortBy: string) => void;
@@ -69,16 +69,16 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     }
   },
 
-  createCustomer: async (name: string, phoneSuffix: string) => {
+  createCustomer: async (name: string, phone: string) => {
     const customer = await customerApi.createCustomer({
       name,
-      phone_suffix: phoneSuffix,
+      phone,
     });
     await get().fetchCustomers();
     return customer;
   },
 
-  updateCustomer: async (id: string, data: { name?: string; phone_suffix?: string }) => {
+  updateCustomer: async (id: string, data: { name?: string; phone?: string }) => {
     await customerApi.updateCustomer(id, data);
     await get().fetchCustomers();
     if (get().selectedCustomer?.id === id) {

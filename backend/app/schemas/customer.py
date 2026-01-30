@@ -8,19 +8,20 @@ from pydantic import BaseModel, Field
 class CustomerCreate(BaseModel):
     """고객 생성 요청"""
     name: str = Field(..., min_length=1, max_length=50, description="고객 성함")
-    phone_suffix: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$", description="연락처 뒷자리")
+    phone: str = Field(..., min_length=11, max_length=11, pattern=r"^010\d{8}$", description="전체 연락처 (01012345678)")
 
 
 class CustomerUpdate(BaseModel):
     """고객 수정 요청"""
     name: Optional[str] = Field(None, min_length=1, max_length=50)
-    phone_suffix: Optional[str] = Field(None, min_length=4, max_length=4, pattern=r"^\d{4}$")
+    phone: Optional[str] = Field(None, min_length=11, max_length=11, pattern=r"^010\d{8}$", description="전체 연락처")
 
 
 class CustomerResponse(BaseModel):
     """고객 응답"""
     id: str
     name: str
+    phone: Optional[str] = None
     phone_suffix: str
     current_balance: int
     created_at: str

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import { useAuthStore } from './stores/authStore';
 import { getCurrentShop } from './api/auth';
 import { ToastProvider, useToast } from './contexts/ToastContext';
@@ -177,6 +178,7 @@ function App() {
     <ToastProvider>
       <NetworkStatusProvider>
         <BrowserRouter>
+          <VercelAnalytics />
           <ActivityTrackerWrapper>
           <Routes>
           {/* 공개 라우트 */}

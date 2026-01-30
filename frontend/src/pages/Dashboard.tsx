@@ -192,16 +192,17 @@ export default function Dashboard() {
 
   const handleAddCustomer = async () => {
     if (!newCustomerName.trim()) return;
-    if (!newCustomerPhone || newCustomerPhone.length !== 4 || !/^\d{4}$/.test(newCustomerPhone)) {
+    if (!newCustomerPhone || newCustomerPhone.length !== 8 || !/^\d{8}$/.test(newCustomerPhone)) {
       audioFeedback.playError();
       return;
     }
 
     setIsAddingCustomer(true);
     try {
+      const fullPhone = `010${newCustomerPhone}`;
       await createCustomer({
         name: newCustomerName.trim(),
-        phone_suffix: newCustomerPhone,
+        phone: fullPhone,
       });
       audioFeedback.playSuccess();
       setNewCustomerName('');
@@ -558,15 +559,24 @@ export default function Dashboard() {
             value={newCustomerName}
             onChange={(e) => setNewCustomerName(e.target.value)}
           />
-          <Input
-            inputSize="pos"
-            label="연락처 뒷자리 (4자리)"
-            placeholder="1234"
-            maxLength={4}
-            value={newCustomerPhone}
-            onChange={(e) => setNewCustomerPhone(e.target.value.replace(/\D/g, ''))}
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              연락처 <span className="text-error-500">*</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-primary-900/30 px-4 py-3 rounded-lg">
+                010
+              </span>
+              <Input
+                inputSize="pos"
+                placeholder="12345678"
+                maxLength={8}
+                value={newCustomerPhone}
+                onChange={(e) => setNewCustomerPhone(e.target.value.replace(/\D/g, ''))}
+                className="flex-1"
+              />
+            </div>
+          </div>
           <div className="flex gap-3 pt-2">
             <Button
               variant="outline"
@@ -584,7 +594,7 @@ export default function Dashboard() {
               size="pos-lg"
               onClick={handleAddCustomer}
               isLoading={isAddingCustomer}
-              disabled={!newCustomerName.trim() || newCustomerPhone.length !== 4}
+              disabled={!newCustomerName.trim() || newCustomerPhone.length !== 8}
               className="flex-[2]"
             >
               등록하기

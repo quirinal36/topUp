@@ -63,6 +63,7 @@ async def get_customers(
         CustomerResponse(
             id=c["id"],
             name=c["name"],
+            phone=c.get("phone"),
             phone_suffix=c["phone_suffix"],
             current_balance=c["current_balance"],
             created_at=c["created_at"]
@@ -87,10 +88,13 @@ async def create_customer(
     # RLS 우회를 위해 admin 클라이언트 사용
     admin_db = get_supabase_admin_client()
 
+    # 전화번호에서 뒷자리 4자리 추출
+    phone_suffix = customer.phone[-4:]
+
     # 중복 확인 (같은 상점 내 동일 이름 + 연락처)
     existing = admin_db.table("customers").select("id").eq("shop_id", shop_id).eq(
         "name", customer.name
-    ).eq("phone_suffix", customer.phone_suffix).execute()
+    ).eq("phone_suffix", phone_suffix).execute()
 
     if existing.data:
         raise HTTPException(
@@ -103,7 +107,8 @@ async def create_customer(
         "id": str(uuid.uuid4()),
         "shop_id": shop_id,
         "name": customer.name,
-        "phone_suffix": customer.phone_suffix,
+        "phone": customer.phone,
+        "phone_suffix": phone_suffix,
         "current_balance": 0,
         "created_at": now_seoul_iso()
     }
@@ -114,6 +119,7 @@ async def create_customer(
     return CustomerResponse(
         id=new_customer["id"],
         name=new_customer["name"],
+        phone=new_customer["phone"],
         phone_suffix=new_customer["phone_suffix"],
         current_balance=0,
         created_at=new_customer["created_at"]
@@ -149,6 +155,7 @@ async def get_customer(
     return CustomerDetail(
         id=customer["id"],
         name=customer["name"],
+        phone=customer.get("phone"),
         phone_suffix=customer["phone_suffix"],
         current_balance=customer["current_balance"],
         created_at=customer["created_at"],
@@ -185,12 +192,17 @@ async def update_customer(
             detail="수정할 내용이 없습니다"
         )
 
+    # phone이 변경되면 phone_suffix도 자동 업데이트
+    if "phone" in update_data and update_data["phone"]:
+        update_data["phone_suffix"] = update_data["phone"][-4:]
+
     result = admin_db.table("customers").update(update_data).eq("id", customer_id).execute()
 
     updated = {**existing.data, **update_data}
     return CustomerResponse(
         id=updated["id"],
         name=updated["name"],
+        phone=updated.get("phone"),
         phone_suffix=updated["phone_suffix"],
         current_balance=updated["current_balance"],
         created_at=updated["created_at"]
