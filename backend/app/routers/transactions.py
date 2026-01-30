@@ -2,11 +2,16 @@
 거래 관리 API 라우터
 충전, 차감, 취소 등
 """
+import json
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 from datetime import datetime, date, timedelta
+from postgrest.exceptions import APIError
 
 from ..database import get_supabase_admin_client
+
+logger = logging.getLogger(__name__)
 from ..utils import now_seoul_iso
 from ..routers.auth import get_current_shop
 from ..models.transaction import TransactionType
@@ -20,6 +25,42 @@ from ..schemas.transaction import (
 )
 
 router = APIRouter(prefix="/api/transactions", tags=["거래 관리"])
+
+
+def _parse_rpc_error(e: APIError) -> Optional[dict]:
+    """
+    Supabase postgrest APIError에서 RPC 함수가 반환한 에러 JSON을 추출합니다.
+    RPC 함수가 success: false를 반환하면 postgrest가 이를 파싱하지 못하고 APIError를 발생시킵니다.
+    """
+    try:
+        # APIError의 details 필드에서 JSON 추출
+        error_str = str(e)
+        # Details: b'{"success": false, ...}' 형태에서 JSON 부분 추출
+        if "Details:" in error_str:
+            details_part = error_str.split("Details:")[-1].strip()
+            # b'...' 형태에서 내용 추출
+            if details_part.startswith("b'") or details_part.startswith('b"'):
+                json_str = details_part[2:-1]  # b' 와 ' 제거
+                # UTF-8 바이트 시퀀스(\xNN)를 실제 바이트로 변환 후 UTF-8 디코딩
+                # latin-1은 0x00-0xFF를 그대로 매핑하므로 바이트 복원에 적합
+                json_bytes = json_str.encode('latin-1').decode('unicode_escape').encode('latin-1')
+                return json.loads(json_bytes.decode('utf-8'))
+
+        # e.details가 있으면 직접 파싱 시도
+        if hasattr(e, 'details') and e.details:
+            if isinstance(e.details, bytes):
+                return json.loads(e.details.decode('utf-8'))
+            elif isinstance(e.details, str):
+                # 문자열에 \x 이스케이프가 포함된 경우 처리
+                if '\\x' in e.details:
+                    json_bytes = e.details.encode('latin-1').decode('unicode_escape').encode('latin-1')
+                    return json.loads(json_bytes.decode('utf-8'))
+                return json.loads(e.details)
+
+        return None
+    except Exception as parse_error:
+        logger.error(f"[RPC_ERROR] 에러 파싱 실패: {parse_error}, 원본: {e}")
+        return None
 
 
 @router.get("", response_model=TransactionListResponse)
@@ -133,22 +174,30 @@ async def charge(
     db = get_supabase_admin_client()
 
     # 원자적 충전 RPC 함수 호출 (Race Condition 방지)
-    result = db.rpc("charge_balance", {
-        "p_customer_id": request.customer_id,
-        "p_shop_id": shop_id,
-        "p_actual_payment": request.actual_payment,
-        "p_service_amount": request.service_amount,
-        "p_payment_method": request.payment_method.value,
-        "p_note": request.note
-    }).execute()
+    try:
+        result = db.rpc("charge_balance", {
+            "p_customer_id": request.customer_id,
+            "p_shop_id": shop_id,
+            "p_actual_payment": request.actual_payment,
+            "p_service_amount": request.service_amount,
+            "p_payment_method": request.payment_method.value,
+            "p_note": request.note
+        }).execute()
+        rpc_result = result.data
+    except APIError as e:
+        logger.warning(f"[CHARGE] APIError 발생: {str(e)}")
+        rpc_result = _parse_rpc_error(e)
+        if rpc_result is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="충전 처리 중 오류가 발생했습니다"
+            )
 
-    if not result.data:
+    if not rpc_result:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="충전 처리 중 오류가 발생했습니다"
         )
-
-    rpc_result = result.data
 
     # RPC 함수에서 반환된 에러 처리
     if not rpc_result.get("success"):
@@ -185,20 +234,28 @@ async def deduct(
     db = get_supabase_admin_client()
 
     # 원자적 차감 RPC 함수 호출 (Race Condition 방지, 잔액 검증 원자적 수행)
-    result = db.rpc("deduct_balance", {
-        "p_customer_id": request.customer_id,
-        "p_shop_id": shop_id,
-        "p_amount": request.amount,
-        "p_note": request.note
-    }).execute()
+    try:
+        result = db.rpc("deduct_balance", {
+            "p_customer_id": request.customer_id,
+            "p_shop_id": shop_id,
+            "p_amount": request.amount,
+            "p_note": request.note
+        }).execute()
+        rpc_result = result.data
+    except APIError as e:
+        logger.warning(f"[DEDUCT] APIError 발생: {str(e)}")
+        rpc_result = _parse_rpc_error(e)
+        if rpc_result is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="차감 처리 중 오류가 발생했습니다"
+            )
 
-    if not result.data:
+    if not rpc_result:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="차감 처리 중 오류가 발생했습니다"
         )
-
-    rpc_result = result.data
 
     # RPC 함수에서 반환된 에러 처리
     if not rpc_result.get("success"):
@@ -248,19 +305,29 @@ async def cancel(
         cancel_note += f": {request.reason}"
 
     # 원자적 취소 RPC 함수 호출 (Race Condition 방지)
-    result = db.rpc("cancel_transaction", {
-        "p_transaction_id": request.transaction_id,
-        "p_shop_id": shop_id,
-        "p_note": cancel_note
-    }).execute()
+    try:
+        result = db.rpc("cancel_transaction", {
+            "p_transaction_id": request.transaction_id,
+            "p_shop_id": shop_id,
+            "p_note": cancel_note
+        }).execute()
+        rpc_result = result.data
+    except APIError as e:
+        # Supabase postgrest가 RPC 에러 응답을 파싱하지 못할 때 발생
+        # Details에서 실제 에러 JSON을 추출
+        logger.warning(f"[CANCEL] APIError 발생: {str(e)}")
+        rpc_result = _parse_rpc_error(e)
+        if rpc_result is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="취소 처리 중 오류가 발생했습니다"
+            )
 
-    if not result.data:
+    if not rpc_result:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="취소 처리 중 오류가 발생했습니다"
         )
-
-    rpc_result = result.data
 
     # RPC 함수에서 반환된 에러 처리
     if not rpc_result.get("success"):
