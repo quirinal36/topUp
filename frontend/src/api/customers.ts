@@ -22,7 +22,7 @@ export const getCustomer = async (customerId: string): Promise<CustomerDetail> =
 // 고객 등록
 export const createCustomer = async (data: {
   name: string;
-  phone_suffix: string;
+  phone: string;
 }): Promise<Customer> => {
   const response = await apiClient.post('/customers', data);
   return response.data;
@@ -31,7 +31,7 @@ export const createCustomer = async (data: {
 // 고객 수정
 export const updateCustomer = async (
   customerId: string,
-  data: { name?: string; phone_suffix?: string }
+  data: { name?: string; phone?: string }
 ): Promise<Customer> => {
   const response = await apiClient.put(`/customers/${customerId}`, data);
   return response.data;

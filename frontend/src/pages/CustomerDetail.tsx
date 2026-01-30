@@ -79,7 +79,11 @@ export default function CustomerDetail() {
   const handleEditClick = () => {
     if (!selectedCustomer) return;
     setEditName(selectedCustomer.name);
-    setEditPhone(selectedCustomer.phone_suffix);
+    // phone이 있으면 010 제외한 8자리, 없으면 빈 문자열
+    const phoneWithout010 = selectedCustomer.phone?.startsWith('010')
+      ? selectedCustomer.phone.slice(3)
+      : '';
+    setEditPhone(phoneWithout010);
     setEditError('');
     setPinAction('edit');
     withPinVerification(() => {
@@ -101,13 +105,13 @@ export default function CustomerDetail() {
 
   const handleEditSubmit = async () => {
     if (!id) return;
-    
+
     if (!editName.trim()) {
       setEditError('이름을 입력해주세요');
       return;
     }
-    if (!editPhone || editPhone.length !== 4 || !/^\d{4}$/.test(editPhone)) {
-      setEditError('연락처 뒷자리 4자리를 입력해주세요');
+    if (!editPhone || editPhone.length !== 8 || !/^\d{8}$/.test(editPhone)) {
+      setEditError('연락처 8자리를 입력해주세요 (010 제외)');
       return;
     }
 
@@ -115,7 +119,8 @@ export default function CustomerDetail() {
     setEditError('');
 
     try {
-      await updateCustomer(id, { name: editName.trim(), phone_suffix: editPhone });
+      const fullPhone = `010${editPhone}`;
+      await updateCustomer(id, { name: editName.trim(), phone: fullPhone });
       toast.success('고객 정보가 수정되었습니다');
       fetchCustomer(id);
       setIsEditModalOpen(false);
@@ -289,13 +294,23 @@ export default function CustomerDetail() {
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
           />
-          <Input
-            label="연락처 뒷자리 (4자리)"
-            maxLength={4}
-            value={editPhone}
-            onChange={(e) => setEditPhone(e.target.value.replace(/\D/g, ''))}
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              연락처 <span className="text-error-500">*</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-primary-900/30 px-4 py-3 rounded-lg">
+                010
+              </span>
+              <Input
+                placeholder="12345678"
+                maxLength={8}
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value.replace(/\D/g, ''))}
+                className="flex-1"
+              />
+            </div>
+          </div>
 
           {editError && <p className="text-error-500 text-sm">{editError}</p>}
 

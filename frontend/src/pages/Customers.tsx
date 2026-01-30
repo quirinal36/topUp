@@ -100,8 +100,8 @@ export default function Customers() {
       audioFeedback.playError();
       return;
     }
-    if (!newPhone || newPhone.length !== 4 || !/^\d{4}$/.test(newPhone)) {
-      setError('연락처 뒷자리 4자리를 입력해주세요');
+    if (!newPhone || newPhone.length !== 8 || !/^\d{8}$/.test(newPhone)) {
+      setError('연락처 8자리를 입력해주세요 (010 제외)');
       audioFeedback.playError();
       return;
     }
@@ -111,7 +111,8 @@ export default function Customers() {
 
     try {
       const customerName = newName.trim();
-      await createCustomer(customerName, newPhone);
+      const fullPhone = `010${newPhone}`;
+      await createCustomer(customerName, fullPhone);
       audioFeedback.playSuccess();
       toast.success(`${customerName} 고객이 등록되었습니다`);
       handleCloseModal();
@@ -298,15 +299,24 @@ export default function Customers() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
           />
-          <Input
-            inputSize="pos"
-            label="연락처 뒷자리 (4자리)"
-            placeholder="1234"
-            maxLength={4}
-            value={newPhone}
-            onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, ''))}
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              연락처 <span className="text-error-500">*</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-primary-900/30 px-4 py-3 rounded-lg">
+                010
+              </span>
+              <Input
+                inputSize="pos"
+                placeholder="12345678"
+                maxLength={8}
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, ''))}
+                className="flex-1"
+              />
+            </div>
+          </div>
 
           {error && <p className="text-error-500 text-base font-medium">{error}</p>}
 
