@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 
@@ -78,6 +79,18 @@ export default function Layout({ children }: LayoutProps) {
 
         <main className="flex-1 p-4 lg:p-6">
           {children}
+
+          {/* Footer */}
+          <footer className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-center gap-3 text-xs text-gray-400 dark:text-gray-500">
+              <Link to="/terms" className="hover:text-primary-600 dark:hover:text-primary-400 underline">이용약관</Link>
+              <span>|</span>
+              <Link to="/privacy" className="hover:text-primary-600 dark:hover:text-primary-400 underline">개인정보처리방침</Link>
+            </div>
+            <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-2 pb-4">
+              &copy; 2026 커밍스(Comings). All rights reserved.
+            </p>
+          </footer>
         </main>
       </div>
     </div>

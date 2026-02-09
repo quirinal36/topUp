@@ -16,6 +16,8 @@ import Transactions from './pages/Transactions';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
+import Terms from './pages/Terms';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import NotFound from './pages/NotFound';
 
 // 활동 추적 및 PIN 타임아웃 체크 훅
@@ -185,6 +187,10 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+
+          {/* 약관/개인정보처리방침 (공개) */}
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
 
           {/* 온보딩 라우트 (인증만 필요, 온보딩 체크 안함) */}
           <Route

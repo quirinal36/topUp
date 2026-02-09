@@ -153,7 +153,9 @@ export default function Login() {
 
           {/* 하단 안내 */}
           <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">
-            로그인 시 서비스 이용약관에 동의하게 됩니다
+            <Link to="/terms" className="hover:text-primary-600 dark:hover:text-primary-400 underline">이용약관</Link>
+            {' | '}
+            <Link to="/privacy" className="hover:text-primary-600 dark:hover:text-primary-400 underline">개인정보처리방침</Link>
           </p>
         </div>
       </div>

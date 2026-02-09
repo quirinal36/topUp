@@ -43,6 +43,8 @@ export default function Register() {
   // Step 4: 최종 가입
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileInstance>(null);
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
 
   // 공통
   const [error, setError] = useState('');
@@ -177,6 +179,12 @@ export default function Register() {
     if (!pin || !/^\d{4}$/.test(pin)) {
       setError('PIN 설정이 필요합니다');
       setCurrentStep(3);
+      return;
+    }
+
+    // 약관 동의 검증
+    if (!agreeTerms || !agreePrivacy) {
+      setError('이용약관 및 개인정보처리방침에 동의해주세요');
       return;
     }
 
@@ -588,6 +596,50 @@ export default function Register() {
                   </div>
                 </div>
 
+                {/* 약관 동의 */}
+                <div className="space-y-3 border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agreeTerms}
+                      onChange={(e) => setAgreeTerms(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      <span className="text-red-500">[필수]</span>{' '}
+                      <a
+                        href="/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 dark:text-primary-400 underline hover:text-primary-700 dark:hover:text-primary-300"
+                      >
+                        서비스 이용약관
+                      </a>
+                      에 동의합니다
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agreePrivacy}
+                      onChange={(e) => setAgreePrivacy(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      <span className="text-red-500">[필수]</span>{' '}
+                      <a
+                        href="/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 dark:text-primary-400 underline hover:text-primary-700 dark:hover:text-primary-300"
+                      >
+                        개인정보처리방침
+                      </a>
+                      에 동의합니다
+                    </span>
+                  </label>
+                </div>
+
                 {/* Turnstile 봇 방지 */}
                 {TURNSTILE_SITE_KEY && (
                   <div className="flex justify-center">
@@ -646,7 +698,7 @@ export default function Register() {
               <button
                 type="button"
                 onClick={handleRegister}
-                disabled={isLoading}
+                disabled={isLoading || !agreeTerms || !agreePrivacy}
                 className="flex-1 min-h-touch flex items-center justify-center gap-2 px-4 py-3 rounded-button font-medium transition-colors bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? '가입 중...' : '회원가입 완료'}
@@ -670,7 +722,9 @@ export default function Register() {
 
         {/* 하단 안내 */}
         <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-4">
-          회원가입 시 서비스 이용약관에 동의하게 됩니다
+          <Link to="/terms" className="hover:text-primary-600 dark:hover:text-primary-400 underline">이용약관</Link>
+          {' | '}
+          <Link to="/privacy" className="hover:text-primary-600 dark:hover:text-primary-400 underline">개인정보처리방침</Link>
         </p>
       </div>
     </div>
