@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { Customer, CustomerDetail, CustomerListResponse } from '../types';
+import { Customer, CustomerDetail, CustomerListResponse, CustomerImportResponse } from '../types';
 
 // 고객 목록 조회
 export const getCustomers = async (params: {
@@ -61,7 +61,7 @@ export const downloadCustomerTemplate = async (): Promise<Blob> => {
 // 고객 데이터 일괄 가져오기
 export const importCustomers = async (
   customers: { name: string; phone: string; balance: number }[]
-): Promise<{ total: number; imported: number; skipped: number; errors: string[] }> => {
+): Promise<CustomerImportResponse> => {
   const response = await apiClient.post('/customers/data/import', { customers });
   return response.data;
 };

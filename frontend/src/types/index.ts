@@ -109,11 +109,18 @@ export interface CustomerImportRow {
   balance: number;
 }
 
+export interface SkippedDetail {
+  name: string;
+  phone: string;
+  reason: string;
+}
+
 export interface CustomerImportResponse {
   total: number;
   imported: number;
   skipped: number;
   errors: string[];
+  skipped_details: SkippedDetail[];
 }
 
 // API 응답 타입

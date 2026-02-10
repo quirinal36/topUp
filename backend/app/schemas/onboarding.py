@@ -70,12 +70,20 @@ class CustomerImportRequest(BaseModel):
     customers: List[CustomerImportRow] = Field(..., description="고객 목록")
 
 
+class SkippedCustomerDetail(BaseModel):
+    """건너뛴 고객 상세"""
+    name: str = Field(..., description="고객명")
+    phone: str = Field(..., description="연락처")
+    reason: str = Field(..., description="건너뛴 사유")
+
+
 class CustomerImportResponse(BaseModel):
     """고객 일괄 등록 응답"""
     total: int = Field(..., description="전체 행 수")
     imported: int = Field(..., description="등록 성공 수")
     skipped: int = Field(..., description="건너뛴 수 (중복 등)")
     errors: List[str] = Field(default_factory=list, description="에러 메시지 목록")
+    skipped_details: List[SkippedCustomerDetail] = Field(default_factory=list, description="건너뛴 고객 상세 목록")
 
 
 class OnboardingStatusResponse(BaseModel):

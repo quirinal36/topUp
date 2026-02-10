@@ -6,6 +6,7 @@ import {
   AlertCircle,
   CheckCircle,
   Check,
+  AlertTriangle,
 } from 'lucide-react';
 import Button from '../common/Button';
 import { useToast } from '../../contexts/ToastContext';
@@ -19,6 +20,7 @@ import {
   getValidCustomers,
   ParsedCustomer,
 } from '../../utils/excelParser';
+import { CustomerImportResponse } from '../../types';
 import clsx from 'clsx';
 
 export default function CustomerDataManagement() {
@@ -33,6 +35,7 @@ export default function CustomerDataManagement() {
   const [parsedCustomers, setParsedCustomers] = useState<ParsedCustomer[]>([]);
   const [validCount, setValidCount] = useState(0);
   const [errorCount, setErrorCount] = useState(0);
+  const [importResult, setImportResult] = useState<CustomerImportResponse | null>(null);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -79,6 +82,7 @@ export default function CustomerDataManagement() {
 
     setFileName(file.name);
     setError('');
+    setImportResult(null);
     setIsParsing(true);
 
     try {
@@ -113,20 +117,8 @@ export default function CustomerDataManagement() {
 
     try {
       const result = await importCustomers(validCustomers);
-
-      if (result.errors.length > 0) {
-        toast.warning(`${result.imported}명 등록, ${result.skipped}명 건너뜀`);
-      } else if (result.skipped > 0) {
-        toast.success(`${result.imported}명 등록 (${result.skipped}명 중복)`);
-      } else {
-        toast.success(`${result.imported}명의 고객이 등록되었습니다`);
-      }
-
-      // 초기화
-      setFileName('');
+      setImportResult(result);
       setParsedCustomers([]);
-      setValidCount(0);
-      setErrorCount(0);
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { detail?: string } } })?.response?.data
@@ -143,6 +135,14 @@ export default function CustomerDataManagement() {
     setValidCount(0);
     setErrorCount(0);
     setError('');
+    setImportResult(null);
+  };
+
+  const formatPhone = (phone: string) => {
+    if (phone.length === 11) {
+      return `${phone.slice(0, 3)}-${phone.slice(3, 7)}-${phone.slice(7)}`;
+    }
+    return phone;
   };
 
   return (
@@ -191,8 +191,87 @@ export default function CustomerDataManagement() {
           </Button>
         </div>
 
-        {/* 파일 업로드 영역 */}
-        {!fileName ? (
+        {/* 가져오기 결과 리포트 */}
+        {importResult ? (
+          <div className="space-y-3">
+            {/* 결과 요약 */}
+            <div className="flex gap-3">
+              <div className="flex-1 p-3 bg-success-50 dark:bg-success-900/20 rounded-lg text-center border border-success-200 dark:border-success-800">
+                <div className="flex items-center justify-center gap-1.5 text-success-700 dark:text-success-400">
+                  <CheckCircle size={18} />
+                  <span className="text-lg font-bold">{importResult.imported}명</span>
+                </div>
+                <p className="text-xs text-success-600 dark:text-success-500 mt-1">등록 성공</p>
+              </div>
+              {importResult.skipped > 0 && (
+                <div className="flex-1 p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg text-center border border-warning-200 dark:border-warning-800">
+                  <div className="flex items-center justify-center gap-1.5 text-warning-700 dark:text-warning-400">
+                    <AlertTriangle size={18} />
+                    <span className="text-lg font-bold">{importResult.skipped}명</span>
+                  </div>
+                  <p className="text-xs text-warning-600 dark:text-warning-500 mt-1">건너뜀</p>
+                </div>
+              )}
+            </div>
+
+            {/* 건너뛴 고객 상세 테이블 */}
+            {importResult.skipped_details.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-warning-500" />
+                  건너뛴 고객 상세
+                </p>
+                <div className="max-h-48 overflow-y-auto border rounded-lg dark:border-gray-700">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                          고객명
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                          연락처
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">
+                          사유
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importResult.skipped_details.map((detail, index) => (
+                        <tr
+                          key={index}
+                          className="border-t dark:border-gray-700 bg-warning-50/50 dark:bg-warning-900/10"
+                        >
+                          <td className="px-3 py-2 text-gray-900 dark:text-white">
+                            {detail.name}
+                          </td>
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
+                            {formatPhone(detail.phone)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-400">
+                              {detail.reason}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 확인 버튼 */}
+            <Button
+              size="sm"
+              onClick={handleCancelImport}
+              className="w-full"
+            >
+              확인
+            </Button>
+          </div>
+        ) : !fileName ? (
+          /* 파일 업로드 영역 */
           <div
             className={clsx(
               'border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors',

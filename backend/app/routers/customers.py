@@ -336,6 +336,7 @@ async def import_customers(
     imported = 0
     skipped = 0
     errors = []
+    skipped_details = []
     customers_to_insert = []
 
     for customer in data.customers:
@@ -345,11 +346,21 @@ async def import_customers(
         # 중복 체크
         if key in existing_customers:
             skipped += 1
+            skipped_details.append({
+                "name": customer.name,
+                "phone": customer.phone,
+                "reason": "기존 고객과 중복"
+            })
             continue
 
         # 새로 추가할 목록에도 중복 체크
         if key in {(c["name"], c.get("phone", "")) for c in customers_to_insert}:
             skipped += 1
+            skipped_details.append({
+                "name": customer.name,
+                "phone": customer.phone,
+                "reason": "파일 내 중복"
+            })
             continue
 
         customers_to_insert.append({
@@ -375,5 +386,6 @@ async def import_customers(
         total=len(data.customers),
         imported=imported,
         skipped=skipped,
-        errors=errors
+        errors=errors,
+        skipped_details=skipped_details
     )
