@@ -271,7 +271,7 @@ export default function OnboardingStep3({ onBack, onComplete }: OnboardingStep3P
                       {customer.name || '-'}
                     </td>
                     <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                      {customer.phone_suffix || '-'}
+                      {customer.phone || '-'}
                     </td>
                     <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
                       {customer.balance.toLocaleString()}원

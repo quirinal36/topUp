@@ -105,7 +105,7 @@ export interface OnboardingStatus {
 
 export interface CustomerImportRow {
   name: string;
-  phone_suffix: string;
+  phone: string;
   balance: number;
 }
 

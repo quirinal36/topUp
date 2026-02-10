@@ -16,7 +16,7 @@ export interface ParseResult {
  * Excel/CSV 파일을 파싱하여 고객 데이터를 추출합니다.
  *
  * 지원 형식: .xlsx, .xls, .csv
- * 필수 컬럼: 고객명(1열), 연락처뒷자리(2열), 잔액(3열)
+ * 필수 컬럼: 고객명(1열), 연락처(2열, 11자리), 잔액(3열)
  */
 export function parseCustomerFile(file: File): Promise<ParseResult> {
   return new Promise((resolve, reject) => {
@@ -99,12 +99,12 @@ function isHeaderRow(row: string[]): boolean {
  */
 function parseRow(row: unknown[], rowNumber: number): ParsedCustomer {
   const name = String(row[0] || '').trim();
-  const phoneSuffix = extractPhoneSuffix(row[1]);
+  const phone = extractPhone(row[1]);
   const balance = parseBalance(row[2]);
 
   const customer: ParsedCustomer = {
     name,
-    phone_suffix: phoneSuffix,
+    phone,
     balance,
     rowNumber,
   };
@@ -119,21 +119,15 @@ function parseRow(row: unknown[], rowNumber: number): ParsedCustomer {
 }
 
 /**
- * 전화번호에서 뒷자리 4자리 추출
+ * 전화번호 추출 (11자리)
  */
-function extractPhoneSuffix(value: unknown): string {
+function extractPhone(value: unknown): string {
   if (value === null || value === undefined) return '';
 
   const str = String(value).trim();
   // 숫자만 추출
   const digits = str.replace(/\D/g, '');
 
-  // 4자리 이상이면 뒤 4자리 사용
-  if (digits.length >= 4) {
-    return digits.slice(-4);
-  }
-
-  // 4자리 미만이면 그대로 반환 (검증에서 에러 처리)
   return digits;
 }
 
@@ -167,12 +161,12 @@ function validateCustomer(customer: ParsedCustomer): string | undefined {
     return '고객명이 너무 깁니다 (최대 50자)';
   }
 
-  if (!customer.phone_suffix) {
-    return '연락처 뒷자리가 비어있습니다';
+  if (!customer.phone) {
+    return '연락처가 비어있습니다';
   }
 
-  if (!/^\d{4}$/.test(customer.phone_suffix)) {
-    return '연락처 뒷자리는 4자리 숫자여야 합니다';
+  if (!/^010\d{8}$/.test(customer.phone)) {
+    return '연락처는 010으로 시작하는 11자리 숫자여야 합니다';
   }
 
   if (customer.balance < 0) {
@@ -188,9 +182,9 @@ function validateCustomer(customer: ParsedCustomer): string | undefined {
 export function getValidCustomers(customers: ParsedCustomer[]): CustomerImportRow[] {
   return customers
     .filter((c) => !c.error)
-    .map(({ name, phone_suffix, balance }) => ({
+    .map(({ name, phone, balance }) => ({
       name,
-      phone_suffix,
+      phone,
       balance,
     }));
 }

@@ -7,6 +7,7 @@ from typing import Optional
 import uuid
 import io
 import logging
+from openpyxl import Workbook
 
 from ..database import get_supabase_admin_client
 from ..utils import now_seoul_iso
@@ -239,20 +240,32 @@ async def delete_customer(
 
 @router.get("/data/template")
 async def get_customer_template():
-    """고객 데이터 임포트 템플릿 다운로드 (CSV)"""
-    csv_content = "고객명,연락처뒷자리,잔액\n"
-    csv_content += "홍길동,1234,50000\n"
-    csv_content += "김철수,5678,30000\n"
-    csv_content += "이영희,9012,0\n"
+    """고객 데이터 임포트 템플릿 다운로드 (Excel)"""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "고객 데이터"
 
-    # UTF-8 BOM 추가 (Excel에서 한글 인식을 위해)
-    csv_bytes = ('\ufeff' + csv_content).encode('utf-8')
+    # 헤더
+    ws.append(["고객명", "연락처", "잔액"])
+    # 예제 데이터
+    ws.append(["홍길동", "01012341234", 50000])
+    ws.append(["김철수", "01056785678", 30000])
+    ws.append(["이영희", "01090129012", 0])
+
+    # 열 너비 조정
+    ws.column_dimensions["A"].width = 15
+    ws.column_dimensions["B"].width = 15
+    ws.column_dimensions["C"].width = 12
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
 
     return StreamingResponse(
-        io.BytesIO(csv_bytes),
-        media_type="text/csv",
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": "attachment; filename=customer_import_template.csv"
+            "Content-Disposition": "attachment; filename=customer_import_template.xlsx"
         }
     )
 
@@ -261,30 +274,41 @@ async def get_customer_template():
 async def export_customers(
     shop_id: str = Depends(get_current_shop)
 ):
-    """고객 데이터 전체 내보내기 (CSV)"""
+    """고객 데이터 전체 내보내기 (Excel)"""
     admin_db = get_supabase_admin_client()
 
     # 모든 고객 조회
     result = admin_db.table("customers").select(
-        "name, phone_suffix, current_balance"
+        "name, phone, phone_suffix, current_balance"
     ).eq("shop_id", shop_id).order("name").execute()
 
-    # CSV 생성
-    csv_content = "고객명,연락처뒷자리,잔액\n"
-    for customer in result.data or []:
-        name = customer["name"].replace(",", " ")  # CSV 이스케이프
-        csv_content += f'{name},{customer["phone_suffix"]},{customer["current_balance"]}\n'
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "고객 데이터"
 
-    # UTF-8 BOM 추가
-    csv_bytes = ('\ufeff' + csv_content).encode('utf-8')
+    # 헤더
+    ws.append(["고객명", "연락처", "잔액"])
+
+    for customer in result.data or []:
+        phone = customer.get("phone") or f"010****{customer['phone_suffix']}"
+        ws.append([customer["name"], phone, customer["current_balance"]])
+
+    # 열 너비 조정
+    ws.column_dimensions["A"].width = 15
+    ws.column_dimensions["B"].width = 15
+    ws.column_dimensions["C"].width = 12
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
 
     logger.info(f"[CUSTOMERS] 고객 데이터 내보내기 - shop_id: {shop_id[:8]}..., count: {len(result.data or [])}")
 
     return StreamingResponse(
-        io.BytesIO(csv_bytes),
-        media_type="text/csv",
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": "attachment; filename=customers_export.csv"
+            "Content-Disposition": "attachment; filename=customers_export.xlsx"
         }
     )
 
@@ -306,8 +330,8 @@ async def import_customers(
         )
 
     # 기존 고객 조회 (중복 체크용)
-    existing_result = admin_db.table("customers").select("name, phone_suffix").eq("shop_id", shop_id).execute()
-    existing_customers = {(c["name"], c["phone_suffix"]) for c in (existing_result.data or [])}
+    existing_result = admin_db.table("customers").select("name, phone").eq("shop_id", shop_id).execute()
+    existing_customers = {(c["name"], c.get("phone", "")) for c in (existing_result.data or [])}
 
     imported = 0
     skipped = 0
@@ -315,7 +339,8 @@ async def import_customers(
     customers_to_insert = []
 
     for customer in data.customers:
-        key = (customer.name, customer.phone_suffix)
+        phone_suffix = customer.phone[-4:]
+        key = (customer.name, customer.phone)
 
         # 중복 체크
         if key in existing_customers:
@@ -323,14 +348,15 @@ async def import_customers(
             continue
 
         # 새로 추가할 목록에도 중복 체크
-        if key in {(c["name"], c["phone_suffix"]) for c in customers_to_insert}:
+        if key in {(c["name"], c.get("phone", "")) for c in customers_to_insert}:
             skipped += 1
             continue
 
         customers_to_insert.append({
             "shop_id": shop_id,
             "name": customer.name,
-            "phone_suffix": customer.phone_suffix,
+            "phone": customer.phone,
+            "phone_suffix": phone_suffix,
             "current_balance": customer.balance
         })
 

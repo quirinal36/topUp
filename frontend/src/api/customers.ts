@@ -42,7 +42,7 @@ export const deleteCustomer = async (customerId: string): Promise<void> => {
   await apiClient.delete(`/customers/${customerId}`);
 };
 
-// 고객 데이터 내보내기 (CSV)
+// 고객 데이터 내보내기 (Excel)
 export const exportCustomers = async (): Promise<Blob> => {
   const response = await apiClient.get('/customers/data/export', {
     responseType: 'blob',
@@ -60,7 +60,7 @@ export const downloadCustomerTemplate = async (): Promise<Blob> => {
 
 // 고객 데이터 일괄 가져오기
 export const importCustomers = async (
-  customers: { name: string; phone_suffix: string; balance: number }[]
+  customers: { name: string; phone: string; balance: number }[]
 ): Promise<{ total: number; imported: number; skipped: number; errors: string[] }> => {
   const response = await apiClient.post('/customers/data/import', { customers });
   return response.data;

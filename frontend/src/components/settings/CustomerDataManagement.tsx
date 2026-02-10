@@ -41,7 +41,7 @@ export default function CustomerDataManagement() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `customers_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `customers_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('고객 데이터가 내보내기되었습니다');
@@ -58,7 +58,7 @@ export default function CustomerDataManagement() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'customer_import_template.csv';
+      a.download = 'customer_import_template.xlsx';
       a.click();
       URL.revokeObjectURL(url);
       toast.success('템플릿이 다운로드되었습니다');
@@ -156,7 +156,7 @@ export default function CustomerDataManagement() {
               데이터 내보내기
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              현재 등록된 모든 고객 데이터를 CSV로 다운로드
+              현재 등록된 모든 고객 데이터를 Excel로 다운로드
             </p>
           </div>
         </div>
@@ -281,7 +281,7 @@ export default function CustomerDataManagement() {
                           {customer.name || '-'}
                         </td>
                         <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                          {customer.phone_suffix || '-'}
+                          {customer.phone || '-'}
                         </td>
                         <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
                           {customer.balance.toLocaleString()}원

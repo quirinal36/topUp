@@ -61,7 +61,7 @@ class ShopOnboardingStep2(BaseModel):
 class CustomerImportRow(BaseModel):
     """고객 임포트 행"""
     name: str = Field(..., min_length=1, max_length=50, description="고객명")
-    phone_suffix: str = Field(..., min_length=4, max_length=4, pattern=r"^\d{4}$", description="연락처 뒷자리 4자리")
+    phone: str = Field(..., min_length=11, max_length=11, pattern=r"^010\d{8}$", description="연락처 (01012345678)")
     balance: int = Field(default=0, ge=0, description="초기 잔액")
 
 
