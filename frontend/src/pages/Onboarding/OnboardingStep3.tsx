@@ -45,7 +45,7 @@ export default function OnboardingStep3({ onBack, onComplete }: OnboardingStep3P
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'customer_import_template.csv';
+      a.download = 'customer_import_template.xlsx';
       a.click();
       URL.revokeObjectURL(url);
       toast.success('템플릿이 다운로드되었습니다');
@@ -160,7 +160,7 @@ export default function OnboardingStep3({ onBack, onComplete }: OnboardingStep3P
           </Button>
         </div>
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          템플릿에 맞게 고객명, 연락처 뒷자리(4자리), 잔액을 입력해주세요
+          템플릿에 맞게 고객명, 연락처(11자리), 잔액을 입력해주세요
         </p>
       </div>
 

@@ -321,20 +321,33 @@ async def complete_onboarding(
 
 @router.get("/template")
 async def get_import_template():
-    """고객 데이터 임포트 템플릿 다운로드 (CSV)"""
-    # CSV 템플릿 생성
-    csv_content = "고객명,연락처뒷자리,잔액\n"
-    csv_content += "홍길동,1234,50000\n"
-    csv_content += "김철수,5678,30000\n"
-    csv_content += "이영희,9012,0\n"
+    """고객 데이터 임포트 템플릿 다운로드 (Excel)"""
+    from openpyxl import Workbook
 
-    # UTF-8 BOM 추가 (Excel에서 한글 인식을 위해)
-    csv_bytes = ('\ufeff' + csv_content).encode('utf-8')
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "고객 데이터"
+
+    # 헤더
+    ws.append(["고객명", "연락처", "잔액"])
+    # 예제 데이터
+    ws.append(["홍길동", "01012341234", 50000])
+    ws.append(["김철수", "01056785678", 30000])
+    ws.append(["이영희", "01090129012", 0])
+
+    # 열 너비 조정
+    ws.column_dimensions["A"].width = 15
+    ws.column_dimensions["B"].width = 15
+    ws.column_dimensions["C"].width = 12
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
 
     return StreamingResponse(
-        io.BytesIO(csv_bytes),
-        media_type="text/csv",
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": "attachment; filename=customer_import_template.csv"
+            "Content-Disposition": "attachment; filename=customer_import_template.xlsx"
         }
     )
