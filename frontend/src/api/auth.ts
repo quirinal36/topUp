@@ -111,6 +111,7 @@ export const updateShop = async (name: string): Promise<{
 export const requestPasswordReset = async (email: string): Promise<{
   message: string;
   expires_in?: number;
+  email_exists: boolean;
 }> => {
   const response = await apiClient.post('/auth/password-reset/request', { email });
   return response.data;
@@ -124,6 +125,30 @@ export const verifyResetCode = async (email: string, code: string): Promise<{
   locked_until?: string;
 }> => {
   const response = await apiClient.post('/auth/password-reset/verify', { email, code });
+  return response.data;
+};
+
+// 사업자등록번호로 이메일 조회
+export const findEmailByBusinessNumber = async (businessNumber: string): Promise<{
+  found: boolean;
+  masked_email?: string;
+  message: string;
+}> => {
+  const response = await apiClient.post('/auth/find-email', { business_number: businessNumber });
+  return response.data;
+};
+
+// 사업자등록번호로 이메일 찾아 인증번호 발송
+export const requestPasswordResetByBusinessNumber = async (businessNumber: string): Promise<{
+  message: string;
+  expires_in?: number;
+  email_exists: boolean;
+  email?: string;
+  masked_email?: string;
+}> => {
+  const response = await apiClient.post('/auth/password-reset/request-by-business-number', {
+    business_number: businessNumber,
+  });
   return response.data;
 };
 

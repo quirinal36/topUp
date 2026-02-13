@@ -388,37 +388,40 @@ class AuthService:
         # 이메일로 상점 조회
         result = self.admin_db.table("shops").select("id, email").eq("email", email.lower()).execute()
 
-        if result.data:
-            shop = result.data[0]
-            shop_id = shop["id"]
-
-            # 6자리 인증번호 생성
-            reset_code = _generate_reset_code()
-            code_hash = self._hash_reset_code(reset_code)
-            now = datetime.now(timezone.utc)
-            expires_at = now + timedelta(minutes=RESET_CODE_EXPIRE_MINUTES)
-
-            # 인증번호 저장 (기존 코드 덮어쓰기)
-            self.admin_db.table("shops").update({
-                "reset_code_hash": code_hash,
-                "reset_code_expires_at": expires_at.isoformat(),
-                "reset_code_failed_count": 0,
-                "reset_code_locked_until": None,
-                "updated_at": now_seoul_iso()
-            }).eq("id", shop_id).execute()
-
-            # 이메일 발송 (Supabase Edge Function 또는 외부 서비스)
-            await self._send_reset_email(email.lower(), reset_code)
-
-            logger.info(f"[PASSWORD_RESET] 인증번호 발송 완료 - shop_id: {shop_id[:8]}...")
-        else:
-            # 존재하지 않는 이메일이어도 로그만 남기고 동일 응답
+        if not result.data:
             logger.debug(f"[PASSWORD_RESET] 존재하지 않는 이메일: {masked_email}")
+            return {
+                "message": "존재하지 않는 email 주소입니다.",
+                "email_exists": False
+            }
 
-        # 보안: 이메일 존재 여부와 관계없이 동일 응답
+        shop = result.data[0]
+        shop_id = shop["id"]
+
+        # 6자리 인증번호 생성
+        reset_code = _generate_reset_code()
+        code_hash = self._hash_reset_code(reset_code)
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(minutes=RESET_CODE_EXPIRE_MINUTES)
+
+        # 인증번호 저장 (기존 코드 덮어쓰기)
+        self.admin_db.table("shops").update({
+            "reset_code_hash": code_hash,
+            "reset_code_expires_at": expires_at.isoformat(),
+            "reset_code_failed_count": 0,
+            "reset_code_locked_until": None,
+            "updated_at": now_seoul_iso()
+        }).eq("id", shop_id).execute()
+
+        # 이메일 발송
+        await self._send_reset_email(email.lower(), reset_code)
+
+        logger.info(f"[PASSWORD_RESET] 인증번호 발송 완료 - shop_id: {shop_id[:8]}...")
+
         return {
             "message": "인증번호가 발송되었습니다. 이메일을 확인해주세요.",
-            "expires_in": RESET_CODE_EXPIRE_MINUTES * 60
+            "expires_in": RESET_CODE_EXPIRE_MINUTES * 60,
+            "email_exists": True
         }
 
     async def _send_reset_email(self, email: str, code: str):
@@ -638,3 +641,103 @@ class AuthService:
         except Exception as e:
             logger.error(f"[PASSWORD_RESET] 비밀번호 업데이트 오류 - shop_id: {shop_id[:8]}..., error: {str(e)}")
             return False
+
+    # ========== 사업자등록번호로 이메일 찾기 ==========
+
+    async def find_email_by_business_number(self, business_number: str) -> Dict[str, Any]:
+        """
+        사업자등록번호로 등록된 이메일 조회
+        business_number: 숫자만 10자리 (하이픈 제거된 상태)
+        """
+        import re
+        digits = re.sub(r'[^0-9]', '', business_number)
+        logger.debug(f"[FIND_EMAIL] 사업자등록번호로 이메일 조회 - business_number: {digits[:3]}***")
+
+        # 하이픈 형식(xxx-xx-xxxxx)과 숫자만(xxxxxxxxxx) 모두 검색
+        formatted = f"{digits[:3]}-{digits[3:5]}-{digits[5:]}"
+
+        # 하이픈 형식으로 먼저 조회
+        result = self.admin_db.table("shops").select(
+            "id, email, business_number"
+        ).eq("business_number", formatted).execute()
+
+        # 결과 없으면 숫자만으로 조회
+        if not result.data:
+            result = self.admin_db.table("shops").select(
+                "id, email, business_number"
+            ).eq("business_number", digits).execute()
+
+        if not result.data:
+            logger.debug(f"[FIND_EMAIL] 등록되지 않은 사업자등록번호")
+            return {
+                "found": False,
+                "masked_email": None,
+                "message": "등록되지 않은 사업자등록번호입니다."
+            }
+
+        shop = result.data[0]
+        email = shop.get("email")
+
+        if not email:
+            logger.debug(f"[FIND_EMAIL] 이메일 미등록 - shop_id: {shop['id'][:8]}...")
+            return {
+                "found": False,
+                "masked_email": None,
+                "message": "해당 사업자에 등록된 이메일이 없습니다."
+            }
+
+        masked = _mask_email(email)
+        logger.info(f"[FIND_EMAIL] 이메일 조회 성공 - shop_id: {shop['id'][:8]}...")
+
+        return {
+            "found": True,
+            "masked_email": masked,
+            "message": "등록된 이메일을 찾았습니다."
+        }
+
+    async def request_password_reset_by_business_number(self, business_number: str) -> Dict[str, Any]:
+        """
+        사업자등록번호로 이메일을 찾아 비밀번호 재설정 인증번호 발송
+        Returns: { message, expires_in, email_exists, email, masked_email }
+        """
+        import re
+        digits = re.sub(r'[^0-9]', '', business_number)
+        formatted = f"{digits[:3]}-{digits[3:5]}-{digits[5:]}"
+
+        # 하이픈 형식으로 먼저 조회
+        result = self.admin_db.table("shops").select(
+            "id, email, business_number"
+        ).eq("business_number", formatted).execute()
+
+        if not result.data:
+            result = self.admin_db.table("shops").select(
+                "id, email, business_number"
+            ).eq("business_number", digits).execute()
+
+        if not result.data:
+            return {
+                "message": "등록되지 않은 사업자등록번호입니다.",
+                "email_exists": False,
+                "email": None,
+                "masked_email": None
+            }
+
+        shop = result.data[0]
+        email = shop.get("email")
+
+        if not email:
+            return {
+                "message": "해당 사업자에 등록된 이메일이 없습니다.",
+                "email_exists": False,
+                "email": None,
+                "masked_email": None
+            }
+
+        # 기존 request_password_reset 로직 재사용 (이메일로 인증번호 발송)
+        reset_result = await self.request_password_reset(email)
+
+        # 실제 이메일과 마스킹 이메일 추가
+        reset_result["email"] = email
+        reset_result["masked_email"] = _mask_email(email)
+
+        return reset_result

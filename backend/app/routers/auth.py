@@ -45,6 +45,10 @@ from ..schemas.auth import (
     NiceAuthStartResponse,
     NiceAuthCompleteRequest,
     NiceAuthCompleteResponse,
+    FindEmailByBusinessNumberRequest,
+    FindEmailByBusinessNumberResponse,
+    PasswordResetByBusinessNumberRequest,
+    PasswordResetByBusinessNumberResponse,
 )
 from ..services.nice_service import get_nice_service, generate_request_id
 
@@ -470,6 +474,9 @@ async def update_current_shop_info(
 # 비밀번호 재설정 요청 Rate Limiting (IP당 시간당 3회)
 _reset_request_attempts: Dict[str, Tuple[int, datetime]] = defaultdict(lambda: (0, _datetime_min_utc))
 
+# 사업자등록번호 이메일 조회 Rate Limiting (IP당 시간당 5회)
+_find_email_attempts: Dict[str, Tuple[int, datetime]] = defaultdict(lambda: (0, _datetime_min_utc))
+
 
 def _check_reset_rate_limit(ip: str) -> Tuple[bool, int]:
     """비밀번호 재설정 요청 Rate Limit 확인"""
@@ -513,10 +520,9 @@ async def request_password_reset(
         return PasswordResetResponse(**result)
     except Exception as e:
         logger.error(f"[PASSWORD_RESET] 인증번호 요청 에러: {str(e)}")
-        # 보안: 에러가 발생해도 동일 응답
-        return PasswordResetResponse(
-            message="인증번호가 발송되었습니다. 이메일을 확인해주세요.",
-            expires_in=600
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="인증번호 발송 중 오류가 발생했습니다"
         )
 
 
@@ -573,4 +579,84 @@ async def confirm_password_reset(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="비밀번호 변경 중 오류가 발생했습니다"
+        )
+
+
+# ========== 사업자등록번호로 이메일 찾기 ==========
+
+def _check_find_email_rate_limit(ip: str) -> Tuple[bool, int]:
+    """사업자등록번호 이메일 조회 Rate Limit 확인 (시간당 5회)"""
+    attempts, first_attempt_time = _find_email_attempts[ip]
+    limit_window = timedelta(hours=1)
+    max_attempts = 5
+    now = datetime.now(timezone.utc)
+
+    if now - first_attempt_time > limit_window:
+        _find_email_attempts[ip] = (1, now)
+        return True, max_attempts - 1
+
+    if attempts >= max_attempts:
+        return False, 0
+
+    _find_email_attempts[ip] = (attempts + 1, first_attempt_time)
+    return True, max_attempts - attempts - 1
+
+
+@router.post("/find-email", response_model=FindEmailByBusinessNumberResponse)
+async def find_email_by_business_number(
+    request_data: FindEmailByBusinessNumberRequest,
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """사업자등록번호로 이메일 조회"""
+    client_ip = _get_client_ip(request)
+
+    # Rate Limit 확인
+    is_allowed, remaining = _check_find_email_rate_limit(client_ip)
+    if not is_allowed:
+        logger.warning(f"[FIND_EMAIL] Rate limit exceeded for IP: {client_ip[:10]}...")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="너무 많은 요청입니다. 1시간 후에 다시 시도해주세요."
+        )
+
+    try:
+        result = await auth_service.find_email_by_business_number(request_data.business_number)
+        return FindEmailByBusinessNumberResponse(**result)
+    except Exception as e:
+        logger.error(f"[FIND_EMAIL] 이메일 조회 에러: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="이메일 조회 중 오류가 발생했습니다"
+        )
+
+
+@router.post("/password-reset/request-by-business-number", response_model=PasswordResetByBusinessNumberResponse)
+async def request_password_reset_by_business_number(
+    request_data: PasswordResetByBusinessNumberRequest,
+    request: Request,
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """사업자등록번호로 이메일을 찾아 인증번호 발송"""
+    client_ip = _get_client_ip(request)
+
+    # Rate Limit 확인 (비밀번호 재설정과 동일 제한)
+    is_allowed, remaining = _check_reset_rate_limit(client_ip)
+    if not is_allowed:
+        logger.warning(f"[PASSWORD_RESET_BIZ] Rate limit exceeded for IP: {client_ip[:10]}...")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="너무 많은 요청입니다. 1시간 후에 다시 시도해주세요."
+        )
+
+    try:
+        result = await auth_service.request_password_reset_by_business_number(
+            request_data.business_number
+        )
+        return PasswordResetByBusinessNumberResponse(**result)
+    except Exception as e:
+        logger.error(f"[PASSWORD_RESET_BIZ] 인증번호 요청 에러: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="인증번호 발송 중 오류가 발생했습니다"
         )

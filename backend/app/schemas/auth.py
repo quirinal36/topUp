@@ -212,6 +212,7 @@ class PasswordResetResponse(BaseModel):
     """비밀번호 재설정 응답"""
     message: str
     expires_in: Optional[int] = None
+    email_exists: bool = True
 
 
 class PasswordResetVerifyResponse(BaseModel):
@@ -220,3 +221,47 @@ class PasswordResetVerifyResponse(BaseModel):
     reset_token: Optional[str] = None
     remaining_attempts: Optional[int] = None
     locked_until: Optional[str] = None
+
+
+# ========== 사업자등록번호로 이메일 찾기 ==========
+
+class FindEmailByBusinessNumberRequest(BaseModel):
+    """사업자등록번호로 이메일 조회 요청"""
+    business_number: str = Field(..., description="사업자등록번호 (xxx-xx-xxxxx 또는 숫자만)")
+
+    @field_validator('business_number')
+    @classmethod
+    def validate_business_number(cls, v: str) -> str:
+        digits = re.sub(r'[^0-9]', '', v)
+        if len(digits) != 10:
+            raise ValueError('사업자등록번호는 10자리 숫자여야 합니다')
+        return digits
+
+
+class FindEmailByBusinessNumberResponse(BaseModel):
+    """사업자등록번호로 이메일 조회 응답"""
+    found: bool
+    masked_email: Optional[str] = None
+    message: str
+
+
+class PasswordResetByBusinessNumberRequest(BaseModel):
+    """사업자등록번호로 비밀번호 재설정 인증번호 발송 요청"""
+    business_number: str = Field(..., description="사업자등록번호")
+
+    @field_validator('business_number')
+    @classmethod
+    def validate_business_number(cls, v: str) -> str:
+        digits = re.sub(r'[^0-9]', '', v)
+        if len(digits) != 10:
+            raise ValueError('사업자등록번호는 10자리 숫자여야 합니다')
+        return digits
+
+
+class PasswordResetByBusinessNumberResponse(BaseModel):
+    """사업자등록번호로 비밀번호 재설정 응답"""
+    message: str
+    expires_in: Optional[int] = None
+    email_exists: bool = False
+    email: Optional[str] = None
+    masked_email: Optional[str] = None

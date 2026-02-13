@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle } from 'lucide-react';
-import { requestPasswordReset, verifyResetCode, confirmPasswordReset } from '../api/auth';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, Building2 } from 'lucide-react';
+import {
+  requestPasswordReset,
+  verifyResetCode,
+  confirmPasswordReset,
+  findEmailByBusinessNumber,
+  requestPasswordResetByBusinessNumber,
+} from '../api/auth';
 
-type Step = 'email' | 'code' | 'password' | 'complete';
+type Step = 'email' | 'find-email' | 'code' | 'password' | 'complete';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -20,11 +26,14 @@ export default function ForgotPassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // 사업자등록번호 관련
+  const [businessNumber, setBusinessNumber] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
+
   // UI 상태
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [remainingTime, setRemainingTime] = useState(0);
-  // remainingAttempts는 API 응답에서 에러 메시지에 직접 포함됨
 
   // Refs
   const codeInputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +76,14 @@ export default function ForgotPassword() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // 사업자등록번호 포맷팅 (xxx-xx-xxxxx)
+  const formatBusinessNumber = (value: string): string => {
+    const digits = value.replace(/\D/g, '').slice(0, 10);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+  };
+
   // Step 1: 이메일 입력 후 인증번호 발송
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +92,10 @@ export default function ForgotPassword() {
 
     try {
       const response = await requestPasswordReset(email);
+      if (!response.email_exists) {
+        setError(response.message);
+        return;
+      }
       setRemainingTime(response.expires_in || 600);
       setStep('code');
     } catch (err: unknown) {
@@ -82,9 +103,71 @@ export default function ForgotPassword() {
       if (error.response?.status === 429) {
         setError('너무 많은 요청입니다. 잠시 후 다시 시도해주세요.');
       } else {
-        // 보안: 성공한 것처럼 보여줌 (이메일 존재 여부 숨김)
-        setRemainingTime(600);
-        setStep('code');
+        setError(error.response?.data?.detail || '인증번호 발송 중 오류가 발생했습니다');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 사업자등록번호로 이메일 조회
+  const handleFindEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setMaskedEmail('');
+    setIsLoading(true);
+
+    const digits = businessNumber.replace(/\D/g, '');
+    if (digits.length !== 10) {
+      setError('사업자등록번호 10자리를 입력해주세요.');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await findEmailByBusinessNumber(digits);
+      if (response.found && response.masked_email) {
+        setMaskedEmail(response.masked_email);
+      } else {
+        setError(response.message);
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (error.response?.status === 429) {
+        setError('너무 많은 요청입니다. 잠시 후 다시 시도해주세요.');
+      } else {
+        setError(error.response?.data?.detail || '이메일 조회 중 오류가 발생했습니다');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 사업자등록번호로 찾은 이메일에 인증번호 발송
+  const handleSendCodeByBusinessNumber = async () => {
+    setError('');
+    setIsLoading(true);
+
+    const digits = businessNumber.replace(/\D/g, '');
+
+    try {
+      const response = await requestPasswordResetByBusinessNumber(digits);
+      if (!response.email_exists) {
+        setError(response.message);
+        return;
+      }
+      // 서버에서 반환한 실제 이메일 저장 (verify/confirm 단계에서 사용)
+      if (response.email) {
+        setEmail(response.email);
+      }
+      setRemainingTime(response.expires_in || 600);
+      setStep('code');
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (error.response?.status === 429) {
+        setError('너무 많은 요청입니다. 잠시 후 다시 시도해주세요.');
+      } else {
+        setError(error.response?.data?.detail || '인증번호 발송 중 오류가 발생했습니다');
       }
     } finally {
       setIsLoading(false);
@@ -233,6 +316,106 @@ export default function ForgotPassword() {
                     {isLoading ? '발송 중...' : '인증번호 발송'}
                   </button>
                 </form>
+
+                {/* 사업자등록번호로 이메일 찾기 링크 */}
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError('');
+                      setStep('find-email');
+                    }}
+                    className="w-full flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    이메일을 모르시나요? 사업자등록번호로 찾기
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step: 사업자등록번호로 이메일 찾기 */}
+            {step === 'find-email' && (
+              <>
+                <h2 className="text-heading-3 text-center text-gray-900 dark:text-white mb-2">
+                  이메일 찾기
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6">
+                  사업자등록번호로 등록된 이메일을 찾습니다
+                </p>
+
+                <form onSubmit={handleFindEmail} className="space-y-4">
+                  <div>
+                    <label htmlFor="businessNumber" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      사업자등록번호
+                    </label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        id="businessNumber"
+                        type="text"
+                        inputMode="numeric"
+                        value={businessNumber}
+                        onChange={(e) => setBusinessNumber(formatBusinessNumber(e.target.value))}
+                        placeholder="000-00-00000"
+                        maxLength={12}
+                        required
+                        className="w-full pl-10 pr-4 py-3 rounded-button border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1a1412] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  {error && (
+                    <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
+                  )}
+
+                  {/* 조회 결과: 마스킹된 이메일 표시 */}
+                  {maskedEmail && (
+                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                      <p className="text-sm text-green-800 dark:text-green-300 mb-1">
+                        등록된 이메일을 찾았습니다
+                      </p>
+                      <p className="text-lg font-medium text-green-900 dark:text-green-200 text-center">
+                        {maskedEmail}
+                      </p>
+                    </div>
+                  )}
+
+                  {!maskedEmail ? (
+                    <button
+                      type="submit"
+                      disabled={isLoading || businessNumber.replace(/\D/g, '').length !== 10}
+                      className="w-full min-h-touch flex items-center justify-center gap-2 px-4 py-3 rounded-button font-medium transition-colors bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? '조회 중...' : '이메일 조회'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSendCodeByBusinessNumber}
+                      disabled={isLoading}
+                      className="w-full min-h-touch flex items-center justify-center gap-2 px-4 py-3 rounded-button font-medium transition-colors bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? '발송 중...' : '이 이메일로 인증번호 보내기'}
+                    </button>
+                  )}
+                </form>
+
+                {/* 이메일로 찾기로 돌아가기 */}
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError('');
+                      setMaskedEmail('');
+                      setStep('email');
+                    }}
+                    className="w-full flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                  >
+                    <Mail className="w-4 h-4" />
+                    이메일로 직접 찾기
+                  </button>
+                </div>
               </>
             )}
 
