@@ -12,6 +12,14 @@
   ],
   "routes": [
     {
+      "src": "/robots.txt",
+      "dest": "frontend/robots.txt"
+    },
+    {
+      "src": "/sitemap.xml",
+      "dest": "frontend/sitemap.xml"
+    },
+    {
       "src": "/assets/(.*)",
       "dest": "frontend/assets/$1"
     },
