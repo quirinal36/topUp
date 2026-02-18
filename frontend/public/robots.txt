@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /customers
+Disallow: /customers/
+Disallow: /transactions
+Disallow: /analytics
+Disallow: /settings
+Disallow: /onboarding
+
+Sitemap: https://www.comings.co.kr/sitemap.xml
